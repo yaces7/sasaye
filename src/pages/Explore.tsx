@@ -15,9 +15,8 @@ import { Search as SearchIcon } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import GroupCard from '../components/groups/GroupCard';
 import VideoCard from '../components/video/VideoCard';
-import { searchGroups, Group } from '../backend/services/groupService';
-import { searchVideos, Video } from '../backend/services/videoService';
-import { getAllGroups } from '../backend/services/groupService';
+import { searchGroups, Group, getUserGroups } from '../backend/services/groupService';
+import { searchVideos, Video, getAllVideos } from '../backend/services/videoService';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -95,17 +94,22 @@ const Explore = () => {
   }, [searchQuery, tabValue]);
 
   useEffect(() => {
-    const fetchGroups = async () => {
+    const fetchInitialData = async () => {
       try {
-        const fetchedGroups = await getAllGroups();
-        setGroups(fetchedGroups);
-        setFilteredGroups(fetchedGroups);
+        if (tabValue === 0) {
+          const fetchedGroups = await getUserGroups(currentUser?.id || '');
+          setGroups(fetchedGroups);
+          setFilteredGroups(fetchedGroups);
+        } else {
+          const fetchedVideos = await getAllVideos();
+          setVideos(fetchedVideos);
+        }
       } catch (error) {
-        console.error('Error fetching groups:', error);
+        console.error('Error fetching initial data:', error);
       }
     };
-    fetchGroups();
-  }, []);
+    fetchInitialData();
+  }, [tabValue, currentUser]);
 
   useEffect(() => {
     const filtered = groups.filter(group =>
@@ -173,7 +177,18 @@ const Explore = () => {
         <Grid container spacing={3}>
           {filteredGroups.map((group) => (
             <Grid item xs={12} sm={6} md={4} key={group.id}>
-              <GroupCard group={group} />
+              <GroupCard 
+                group={{
+                  id: group.id,
+                  name: group.name,
+                  description: group.description,
+                  memberCount: group.members?.length || 0,
+                  image: group.image || '/default-group-image.png',
+                  isJoined: group.members?.includes(currentUser?.id || ''),
+                  isOwner: group.ownerId === currentUser?.id,
+                  tags: group.tags
+                }} 
+              />
             </Grid>
           ))}
         </Grid>

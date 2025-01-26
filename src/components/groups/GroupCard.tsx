@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 interface GroupProps {
   group: {
-    id: number;
+    id: string;
     name: string;
     description: string;
     memberCount: number;
@@ -13,15 +13,15 @@ interface GroupProps {
     isOwner?: boolean;
     tags?: string[];
   };
-  onJoin?: (groupId: number) => void;
-  onLeave?: (groupId: number) => void;
+  onJoin?: (groupId: string) => void;
+  onLeave?: (groupId: string) => void;
 }
 
 const GroupCard = ({ group, onJoin, onLeave }: GroupProps) => {
   const navigate = useNavigate();
 
   const handleAction = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Kartın tıklanma olayını engelle
+    e.stopPropagation();
     if (group.isJoined) {
       onLeave?.(group.id);
     } else {

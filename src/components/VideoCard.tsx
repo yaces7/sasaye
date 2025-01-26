@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Card,
   CardContent,
@@ -21,7 +20,7 @@ interface VideoCardProps {
   video: Video;
 }
 
-const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
+const VideoCard = ({ video }: VideoCardProps) => {
   const navigate = useNavigate();
 
   const formatDate = (date: Date) => {

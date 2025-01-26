@@ -10,12 +10,12 @@ import {
   CircularProgress
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
-import { getGroupById, joinGroup, leaveGroup } from '../backend/services/groupService';
+import { getGroupById, joinGroup, leaveGroup, Group } from '../backend/services/groupService';
 
 const GroupDetail = () => {
   const { groupId } = useParams();
   const { currentUser } = useAuth();
-  const [group, setGroup] = useState<any>(null);
+  const [group, setGroup] = useState<Group | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isMember, setIsMember] = useState(false);
@@ -28,7 +28,9 @@ const GroupDetail = () => {
         const groupData = await getGroupById(groupId);
         if (groupData) {
           setGroup(groupData);
-          setIsMember(groupData.members.includes(currentUser?.id));
+          if (currentUser?.id) {
+            setIsMember(groupData.members.includes(currentUser.id));
+          }
         }
       } catch (error) {
         setError('Grup bilgileri yüklenirken bir hata oluştu');
@@ -41,22 +43,30 @@ const GroupDetail = () => {
   }, [groupId, currentUser]);
 
   const handleJoinGroup = async () => {
-    if (!currentUser || !groupId) return;
+    if (!currentUser?.id || !groupId) return;
     
     try {
       await joinGroup(groupId, currentUser.id);
       setIsMember(true);
+      const updatedGroup = await getGroupById(groupId);
+      if (updatedGroup) {
+        setGroup(updatedGroup);
+      }
     } catch (error) {
       setError('Gruba katılırken bir hata oluştu');
     }
   };
 
   const handleLeaveGroup = async () => {
-    if (!currentUser || !groupId) return;
+    if (!currentUser?.id || !groupId) return;
     
     try {
       await leaveGroup(groupId, currentUser.id);
       setIsMember(false);
+      const updatedGroup = await getGroupById(groupId);
+      if (updatedGroup) {
+        setGroup(updatedGroup);
+      }
     } catch (error) {
       setError('Gruptan ayrılırken bir hata oluştu');
     }
@@ -105,7 +115,7 @@ const GroupDetail = () => {
             <Typography variant="body2" color="text.secondary" gutterBottom>
               {group.members.length} üye
             </Typography>
-            {currentUser && (
+            {currentUser && currentUser.id !== group.ownerId && (
               <Button
                 variant="contained"
                 color={isMember ? "error" : "primary"}

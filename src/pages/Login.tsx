@@ -9,8 +9,12 @@ import {
   Alert,
   useTheme,
   useMediaQuery,
+  CircularProgress
 } from '@mui/material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../backend/firebase';
+import { getUserById } from '../backend/services/userService';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -20,19 +24,51 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email === 'test@test.com' && password === 'test123') {
+    setError('');
+    setLoading(true);
+
+    try {
+      // Firebase ile giriş yap
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      // Email doğrulaması kontrolü
+      if (!firebaseUser.emailVerified) {
+        setError('Lütfen email adresinizi doğrulayın.');
+        return;
+      }
+
+      // Firestore'dan kullanıcı bilgilerini al
+      const userData = await getUserById(firebaseUser.uid);
+      if (!userData) {
+        setError('Kullanıcı bilgileri alınamadı.');
+        return;
+      }
+
+      // Local storage'a kullanıcı bilgilerini kaydet
       localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('user', JSON.stringify({
-        name: 'Test Kullanıcı',
-        email: email,
-        avatar: 'https://source.unsplash.com/random/100x100?face'
-      }));
+      localStorage.setItem('user', JSON.stringify(userData));
+
+      // Ana sayfaya yönlendir
       navigate('/');
-    } else {
-      setError('E-posta veya şifre hatalı!');
+    } catch (error: any) {
+      if (error.code === 'auth/invalid-email') {
+        setError('Geçersiz email adresi.');
+      } else if (error.code === 'auth/user-disabled') {
+        setError('Bu hesap devre dışı bırakılmış.');
+      } else if (error.code === 'auth/user-not-found') {
+        setError('Bu email adresi ile kayıtlı kullanıcı bulunamadı.');
+      } else if (error.code === 'auth/wrong-password') {
+        setError('Hatalı şifre.');
+      } else {
+        setError('Giriş yapılırken bir hata oluştu: ' + error.message);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -124,6 +160,7 @@ const Login = () => {
             required
             variant="outlined"
             size="medium"
+            disabled={loading}
             sx={{
               '& .MuiOutlinedInput-root': {
                 borderRadius: 1.5,
@@ -140,6 +177,7 @@ const Login = () => {
             required
             variant="outlined"
             size="medium"
+            disabled={loading}
             sx={{
               '& .MuiOutlinedInput-root': {
                 borderRadius: 1.5,
@@ -152,6 +190,7 @@ const Login = () => {
             variant="contained"
             fullWidth
             size="large"
+            disabled={loading}
             sx={{
               mt: 2,
               py: { xs: 1.5, sm: 2 },
@@ -159,9 +198,10 @@ const Login = () => {
               textTransform: 'none',
               fontSize: { xs: '1rem', sm: '1.1rem' },
               fontWeight: 600,
+              minHeight: 48,
             }}
           >
-            Giriş Yap
+            {loading ? <CircularProgress size={24} /> : 'Giriş Yap'}
           </Button>
 
           <Typography 

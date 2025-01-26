@@ -29,6 +29,7 @@ export interface User {
   customId: string;
   bio?: string;
   createdAt: Date;
+  isEmailVerified: boolean;
 }
 
 export interface UserSettings {
@@ -71,22 +72,45 @@ export const updateUserSettings = async (userId: string, settings: Partial<UserS
 // Kullanıcı oluştur
 export const createUser = async (name: string, email: string, password: string): Promise<User> => {
   try {
+    // Firebase Authentication'da kullanıcı oluştur
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const firebaseUser = userCredential.user;
+
+    // Kullanıcı profilini güncelle
+    await updateProfile(firebaseUser, {
+      displayName: name
+    });
+
+    // Email doğrulama gönder
+    await sendEmailVerification(firebaseUser);
+
     const customId = generateCustomId();
     const userData = {
       name,
       email,
       customId,
-      createdAt: new Date()
+      createdAt: new Date(),
+      isEmailVerified: false,
+      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`
     };
 
-    const docRef = doc(collection(db, 'users'));
-    await setDoc(docRef, userData);
+    // Firestore'a kullanıcı verilerini kaydet
+    await setDoc(doc(db, 'users', firebaseUser.uid), userData);
 
     return {
-      id: docRef.id,
+      id: firebaseUser.uid,
       ...userData
     };
   } catch (error: any) {
+    if (error.code === 'auth/email-already-in-use') {
+      throw new Error('Bu email adresi zaten kullanımda');
+    } else if (error.code === 'auth/invalid-email') {
+      throw new Error('Geçersiz email adresi');
+    } else if (error.code === 'auth/operation-not-allowed') {
+      throw new Error('Email/şifre girişi devre dışı bırakılmış');
+    } else if (error.code === 'auth/weak-password') {
+      throw new Error('Şifre çok zayıf');
+    }
     throw new Error('Kullanıcı oluşturulamadı: ' + error.message);
   }
 };
