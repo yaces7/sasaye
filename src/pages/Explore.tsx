@@ -13,8 +13,8 @@ import {
 } from '@mui/material';
 import { Search as SearchIcon } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import GroupCard from '../components/GroupCard';
-import VideoCard from '../components/VideoCard';
+import GroupCard from '../components/groups/GroupCard';
+import VideoCard from '../components/video/VideoCard';
 import { searchGroups, Group } from '../backend/services/groupService';
 import { searchVideos, Video } from '../backend/services/videoService';
 import { getAllGroups } from '../backend/services/groupService';

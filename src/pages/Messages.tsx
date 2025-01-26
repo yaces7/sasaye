@@ -25,8 +25,7 @@ import {
   sendMessage, 
   subscribeToMessages, 
   Message,
-  getUserChats,
-  getMessages
+  getUserChats
 } from '../backend/services/messageService';
 
 interface Chat {
@@ -65,7 +64,7 @@ const Messages = () => {
           chatIds.map(async (chatId) => {
             const [user1Id, user2Id] = chatId.split('_');
             const otherUserId = user1Id === currentUser.id ? user2Id : user1Id;
-            const otherUser = await getUserById(otherUserId);
+            const otherUser = await getUserByCustomId(otherUserId);
             
             if (!otherUser) return null;
 
@@ -104,30 +103,15 @@ const Messages = () => {
     return () => unsubscribe();
   }, [currentUser, selectedChat]);
 
-  useEffect(() => {
-    if (selectedChat) {
-      const fetchMessages = async () => {
-        try {
-          const chatMessages = await getMessages(selectedChat.userId);
-          setMessages(chatMessages);
-        } catch (error) {
-          console.error('Error fetching messages:', error);
-        }
-      };
-      fetchMessages();
-    }
-  }, [selectedChat]);
-
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedChat || !currentUser) return;
 
     try {
-      await sendMessage({
-        chatId: selectedChat.userId,
-        senderId: currentUser.id,
-        content: newMessage,
-        timestamp: new Date()
-      });
+      await sendMessage(
+        selectedChat.userId,
+        currentUser.id,
+        newMessage.trim()
+      );
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
@@ -218,8 +202,11 @@ const Messages = () => {
             chats.map((chat) => (
               <ListItem
                 key={chat.userId}
-                button
-                selected={selectedChat?.userId === chat.userId}
+                sx={{
+                  cursor: 'pointer',
+                  '&:hover': { backgroundColor: 'action.hover' },
+                  backgroundColor: selectedChat?.userId === chat.userId ? 'action.selected' : 'inherit'
+                }}
                 onClick={() => setSelectedChat(chat)}
               >
                 <ListItemAvatar>

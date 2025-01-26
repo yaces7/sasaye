@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -10,30 +10,25 @@ import {
   CircularProgress
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
-import { getGroupById, joinGroup, leaveGroup, Group } from '../backend/services/groupService';
+import { getGroupById, joinGroup, leaveGroup } from '../backend/services/groupService';
 
 const GroupDetail = () => {
-  const params = useParams();
-  const groupId = params.groupId ?? '';
-  const navigate = useNavigate();
+  const { groupId } = useParams();
   const { currentUser } = useAuth();
-  const [group, setGroup] = useState<Group | null>(null);
+  const [group, setGroup] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isMember, setIsMember] = useState(false);
 
   useEffect(() => {
     const fetchGroup = async () => {
-      if (!groupId) {
-        navigate('/groups');
-        return;
-      }
+      if (!groupId) return;
       
       try {
         const groupData = await getGroupById(groupId);
         if (groupData) {
           setGroup(groupData);
-          setIsMember(groupData.members.includes(currentUser?.id ?? ''));
+          setIsMember(groupData.members.includes(currentUser?.id));
         }
       } catch (error) {
         setError('Grup bilgileri yüklenirken bir hata oluştu');
@@ -43,7 +38,7 @@ const GroupDetail = () => {
     };
 
     fetchGroup();
-  }, [groupId, currentUser, navigate]);
+  }, [groupId, currentUser]);
 
   const handleJoinGroup = async () => {
     if (!currentUser || !groupId) return;
@@ -108,7 +103,7 @@ const GroupDetail = () => {
               ))}
             </Box>
             <Typography variant="body2" color="text.secondary" gutterBottom>
-              {group.memberCount} üye
+              {group.members.length} üye
             </Typography>
             {currentUser && (
               <Button

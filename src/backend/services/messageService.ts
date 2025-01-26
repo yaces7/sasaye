@@ -1,54 +1,55 @@
 import {
   collection,
+  doc,
+  getDoc,
+  getDocs,
   addDoc,
   query,
   where,
   orderBy,
   onSnapshot,
-  Timestamp,
-  getDocs,
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export interface Message {
   id: string;
+  chatId: string;
   senderId: string;
-  receiverId: string;
   content: string;
-  createdAt: Date;
-  read: boolean;
+  timestamp: Date;
 }
 
-// İki kullanıcı arasındaki sohbet ID'sini oluştur
-const getChatId = (userId1: string, userId2: string): string => {
-  return [userId1, userId2].sort().join('_');
+// Mesaj gönderme
+export const sendMessage = async (chatId: string, senderId: string, content: string): Promise<void> => {
+  try {
+    await addDoc(collection(db, 'messages'), {
+      chatId,
+      senderId,
+      content,
+      timestamp: new Date()
+    });
+  } catch (error: any) {
+    throw new Error('Mesaj gönderilemedi: ' + error.message);
+  }
 };
 
-// Yeni mesaj gönder
-export const sendMessage = async (
-  senderId: string,
-  receiverId: string,
-  content: string
-): Promise<Message> => {
+// Mesajları getir
+export const getMessages = async (chatId: string): Promise<Message[]> => {
   try {
-    const chatId = getChatId(senderId, receiverId);
-    const messageData = {
-      senderId,
-      receiverId,
-      content,
-      createdAt: Timestamp.now(),
-      read: false,
-      chatId,
-    };
-
-    const docRef = await addDoc(collection(db, 'messages'), messageData);
-    return {
-      id: docRef.id,
-      ...messageData,
-      createdAt: messageData.createdAt.toDate(),
-    };
+    const q = query(
+      collection(db, 'messages'),
+      where('chatId', '==', chatId),
+      orderBy('timestamp', 'asc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data() as Omit<Message, 'id'>
+    }));
   } catch (error: any) {
-    throw new Error(error.message);
+    throw new Error('Mesajlar alınamadı: ' + error.message);
   }
 };
 
@@ -57,54 +58,35 @@ export const subscribeToMessages = (
   userId1: string,
   userId2: string,
   callback: (messages: Message[]) => void
-) => {
-  const chatId = getChatId(userId1, userId2);
+): (() => void) => {
+  const chatId = [userId1, userId2].sort().join('_');
   const q = query(
     collection(db, 'messages'),
     where('chatId', '==', chatId),
-    orderBy('createdAt', 'asc')
+    orderBy('timestamp', 'asc')
   );
 
   return onSnapshot(q, (snapshot) => {
-    const messages = snapshot.docs.map((doc) => ({
+    const messages = snapshot.docs.map(doc => ({
       id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt.toDate(),
-    })) as Message[];
+      ...doc.data() as Omit<Message, 'id'>
+    }));
     callback(messages);
   });
 };
 
-// Kullanıcının tüm sohbetlerini getir
+// Kullanıcının sohbetlerini getir
 export const getUserChats = async (userId: string): Promise<string[]> => {
   try {
-    const sentMessagesQuery = query(
+    const q = query(
       collection(db, 'messages'),
-      where('senderId', '==', userId)
+      where('participants', 'array-contains', userId)
     );
-    const receivedMessagesQuery = query(
-      collection(db, 'messages'),
-      where('receiverId', '==', userId)
-    );
-
-    const [sentSnapshot, receivedSnapshot] = await Promise.all([
-      getDocs(sentMessagesQuery),
-      getDocs(receivedMessagesQuery),
-    ]);
-
-    const chatIds = new Set<string>();
     
-    sentSnapshot.docs.forEach((doc) => {
-      chatIds.add(doc.data().chatId);
-    });
-    
-    receivedSnapshot.docs.forEach((doc) => {
-      chatIds.add(doc.data().chatId);
-    });
-
-    return Array.from(chatIds);
+    const querySnapshot = await getDocs(q);
+    return [...new Set(querySnapshot.docs.map(doc => doc.data().chatId))];
   } catch (error: any) {
-    throw new Error(error.message);
+    throw new Error('Sohbetler alınamadı: ' + error.message);
   }
 };
 

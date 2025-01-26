@@ -23,16 +23,12 @@ import { auth, db } from '../firebase';
 
 export interface User {
   id: string;
-  uid: string;
   name: string;
   email: string;
   avatar?: string;
-  createdAt: Date;
   customId: string;
-  isEmailVerified: boolean;
   bio?: string;
-  website?: string;
-  phoneNumber?: string;
+  createdAt: Date;
 }
 
 export interface UserSettings {
@@ -72,29 +68,84 @@ export const updateUserSettings = async (userId: string, settings: Partial<UserS
   }
 };
 
-// Profil güncelleme
-export const updateUserProfile = async (
-  userId: string,
-  data: {
-    name?: string;
-    bio?: string;
-    website?: string;
-    phoneNumber?: string;
-    avatar?: string;
+// Kullanıcı oluştur
+export const createUser = async (name: string, email: string, password: string): Promise<User> => {
+  try {
+    const customId = generateCustomId();
+    const userData = {
+      name,
+      email,
+      customId,
+      createdAt: new Date()
+    };
+
+    const docRef = doc(collection(db, 'users'));
+    await setDoc(docRef, userData);
+
+    return {
+      id: docRef.id,
+      ...userData
+    };
+  } catch (error: any) {
+    throw new Error('Kullanıcı oluşturulamadı: ' + error.message);
   }
-): Promise<void> => {
+};
+
+// Kullanıcı getir
+export const getUserById = async (userId: string): Promise<User | null> => {
+  try {
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (!userDoc.exists()) return null;
+
+    return {
+      id: userDoc.id,
+      ...userDoc.data() as Omit<User, 'id'>
+    };
+  } catch (error: any) {
+    throw new Error('Kullanıcı bilgileri alınamadı: ' + error.message);
+  }
+};
+
+// Custom ID ile kullanıcı getir
+export const getUserByCustomId = async (customId: string): Promise<User | null> => {
+  try {
+    const q = query(collection(db, 'users'), where('customId', '==', customId));
+    const querySnapshot = await getDocs(q);
+    
+    if (querySnapshot.empty) return null;
+    const userDoc = querySnapshot.docs[0];
+
+    return {
+      id: userDoc.id,
+      ...userDoc.data() as Omit<User, 'id'>
+    };
+  } catch (error: any) {
+    throw new Error('Kullanıcı bilgileri alınamadı: ' + error.message);
+  }
+};
+
+// İsim ile kullanıcı ara
+export const getUserByName = async (name: string): Promise<User | null> => {
+  try {
+    const q = query(collection(db, 'users'), where('name', '==', name));
+    const querySnapshot = await getDocs(q);
+    
+    if (querySnapshot.empty) return null;
+    const userDoc = querySnapshot.docs[0];
+
+    return {
+      id: userDoc.id,
+      ...userDoc.data() as Omit<User, 'id'>
+    };
+  } catch (error: any) {
+    throw new Error('Kullanıcı bilgileri alınamadı: ' + error.message);
+  }
+};
+
+// Kullanıcı profilini güncelle
+export const updateUserProfile = async (userId: string, data: Partial<User>): Promise<void> => {
   try {
     await updateDoc(doc(db, 'users', userId), data);
-    
-    if (data.name) {
-      const firebaseUser = auth.currentUser;
-      if (firebaseUser) {
-        await updateProfile(firebaseUser, {
-          displayName: data.name,
-          photoURL: data.avatar || firebaseUser.photoURL
-        });
-      }
-    }
   } catch (error: any) {
     throw new Error('Profil güncellenemedi: ' + error.message);
   }
@@ -139,84 +190,9 @@ export const sendPasswordReset = async (email: string): Promise<void> => {
   }
 };
 
-// 9 haneli benzersiz ID oluştur
-const generateCustomId = async (): Promise<string> => {
-  while (true) {
-    // 9 haneli rastgele sayı oluştur
-    const id = Math.floor(100000000 + Math.random() * 900000000).toString();
-    
-    // Bu ID'nin daha önce kullanılıp kullanılmadığını kontrol et
-    const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('customId', '==', id));
-    const querySnapshot = await getDocs(q);
-    
-    if (querySnapshot.empty) {
-      return id;
-    }
-  }
-};
-
-// Kullanıcı kaydı
-export const createUser = async (name: string, email: string, password: string): Promise<User> => {
-  try {
-    // Firebase Auth ile kullanıcı oluştur
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const { user: firebaseUser } = userCredential;
-
-    // Email doğrulama gönder
-    await sendEmailVerification(firebaseUser);
-
-    // Benzersiz ID oluştur
-    const customId = await generateCustomId();
-
-    // Kullanıcı verilerini hazırla
-    const userData: User = {
-      id: firebaseUser.uid,
-      uid: firebaseUser.uid,
-      name,
-      email,
-      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${name}`,
-      createdAt: new Date(),
-      customId,
-      isEmailVerified: false
-    };
-
-    // Firestore'a kullanıcı verilerini kaydet
-    await setDoc(doc(db, 'users', firebaseUser.uid), userData);
-
-    // Varsayılan ayarları oluştur
-    await getUserSettings(firebaseUser.uid);
-
-    return userData;
-  } catch (error: any) {
-    throw new Error(error.message);
-  }
-};
-
-// Giriş yap
-export const signIn = async (email: string, password: string): Promise<User> => {
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const { user: firebaseUser } = userCredential;
-
-    // Kullanıcı verilerini Firestore'dan al
-    const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-    if (!userDoc.exists()) {
-      throw new Error('Kullanıcı bulunamadı');
-    }
-
-    // Email doğrulama durumunu güncelle
-    await updateDoc(doc(db, 'users', firebaseUser.uid), {
-      isEmailVerified: firebaseUser.emailVerified
-    });
-
-    return {
-      ...userDoc.data() as User,
-      isEmailVerified: firebaseUser.emailVerified
-    };
-  } catch (error: any) {
-    throw new Error(error.message);
-  }
+// Benzersiz kullanıcı ID'si oluştur
+const generateCustomId = (): string => {
+  return Math.random().toString().slice(2, 11);
 };
 
 // Email doğrulama durumunu kontrol et
@@ -259,50 +235,6 @@ export const signOut = async (): Promise<void> => {
     await firebaseSignOut(auth);
     localStorage.removeItem('user');
     localStorage.removeItem('isLoggedIn');
-  } catch (error: any) {
-    throw new Error(error.message);
-  }
-};
-
-export const getUserById = async (userId: string): Promise<User | null> => {
-  try {
-    const userDoc = await getDoc(doc(db, 'users', userId));
-    if (!userDoc.exists()) {
-      return null;
-    }
-    return userDoc.data() as User;
-  } catch (error: any) {
-    throw new Error(error.message);
-  }
-};
-
-export const getUserByCustomId = async (customId: string): Promise<User | null> => {
-  try {
-    const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('customId', '==', customId));
-    const querySnapshot = await getDocs(q);
-    
-    if (querySnapshot.empty) {
-      return null;
-    }
-
-    return querySnapshot.docs[0].data() as User;
-  } catch (error: any) {
-    throw new Error(error.message);
-  }
-};
-
-export const getUserByName = async (name: string): Promise<User | null> => {
-  try {
-    const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('name', '==', name));
-    const querySnapshot = await getDocs(q);
-    
-    if (querySnapshot.empty) {
-      return null;
-    }
-
-    return querySnapshot.docs[0].data() as User;
   } catch (error: any) {
     throw new Error(error.message);
   }

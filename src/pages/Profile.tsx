@@ -34,13 +34,23 @@ const Profile = () => {
     }
   };
 
+  if (!currentUser) {
+    return (
+      <Container maxWidth="md" sx={{ mt: 4 }}>
+        <Typography color="error">
+          Bu sayfayı görüntülemek için giriş yapmalısınız.
+        </Typography>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="md" sx={{ mt: 4 }}>
       <Paper sx={{ p: 4 }}>
         <Grid container spacing={4}>
           <Grid item xs={12} sm={4} sx={{ textAlign: 'center' }}>
             <Avatar
-              src={currentUser?.photoURL || undefined}
+              src={currentUser.avatar}
               sx={{
                 width: isMobile ? 120 : 200,
                 height: isMobile ? 120 : 200,
@@ -51,11 +61,19 @@ const Profile = () => {
           </Grid>
           <Grid item xs={12} sm={8}>
             <Typography variant="h4" gutterBottom>
-              {currentUser?.displayName || 'İsimsiz Kullanıcı'}
+              {currentUser.name}
             </Typography>
             <Typography variant="body1" color="text.secondary" paragraph>
-              {currentUser?.email}
+              {currentUser.email}
             </Typography>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              ID: {currentUser.customId}
+            </Typography>
+            {currentUser.bio && (
+              <Typography variant="body1" paragraph>
+                {currentUser.bio}
+              </Typography>
+            )}
             <Button
               variant="contained"
               color="error"
