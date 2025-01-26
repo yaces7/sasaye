@@ -1,0 +1,104 @@
+cursor_rules:
+
+Proje Genel Bilgileri
+
+Teknoloji yığını: React, TypeScript
+
+Stil kılavuzu: Airbnb JavaScript Stil Rehberi
+
+Hedef: Modern, dinamik, kullanıcı dostu bir sosyal medya platformu oluşturmak
+
+Kodlama Standartları
+
+Kod yapısı:
+
+Her bileşen ayrı bir dosyada tanımlanmalı
+
+Fonksiyonel bileşenler tercih edilmeli
+
+Tipler:
+
+Tüm props ve state için kesin TypeScript tipleri tanımlanmalı
+
+"any" tipi kullanmaktan kaçınılmalı
+
+Modüller:
+
+Kullanılmayan importları kaldır
+
+Kapsamlı ve anlamlı değişken isimleri kullanılmalı
+
+UI/UX Kuralları
+
+Tema:
+
+Açık ve koyu mod desteklenmeli
+
+Varsayılan renk paleti: Material Design renkleri kullanılmalı
+
+Düğmeler:
+
+Varsayılan boyutlar: Küçük, orta, büyük (sm, md, lg)
+
+Hover, aktif ve odaklanma durumları için özel stiller
+
+Kartlar:
+
+Gölgelendirme (box-shadow): Varsayılan olarak yumuşak bir efekt kullanılmalı
+
+Dış kenar boşlukları (margin): 1rem
+
+İç kenar boşlukları (padding): 1rem
+
+Animasyonlar:
+
+Sayfa geçişlerinde animasyonlar kullanılmalı (ör. React Transition Group veya Framer Motion)
+
+Varsayılan animasyon süresi: 300ms
+
+Özel animasyon kuralları: Kart hover efektleri için hafif ölçekleme (scale)
+
+Performans ve Güvenlik
+
+Performans:
+
+React.memo ve useMemo kullanarak gereksiz yeniden renderı azalt
+
+Lazy-loading ve React Suspense kullanılarak sayfa yüklenme süresi optimize edilmeli
+
+Güvenlik:
+
+Form verileri doğrulanmalı (Validation: Yup veya React Hook Form)
+
+XSS saldırılarını engellemek için kullanıcı girdileri sanitize edilmeli
+
+Proje Organizasyonu
+
+Klasör yapısı:
+
+"components": Tüm UI bileşenleri
+
+"pages": Sayfa bileşenleri
+
+"hooks": Özel React hookları
+
+"contexts": Context API ile oluşturulan global state yönetimi dosyaları
+
+"assets": Görseller ve statik dosyalar
+
+"utils": Yardımcı fonksiyonlar ve araçlar
+
+Git Kuralları:
+
+Her özelliğin geliştirilmesi için ayrı bir branch oluşturulmalı
+
+Ana branch "protected" olarak ayarlanmalı ve her PR kod incelemesinden geçmeli
+
+Erişilebilirlik (A11y)
+
+Her interaktif bileşen için uygun ARIA rolleri eklenmeli
+
+Klavye navigasyonu desteklenmeli
+
+Kontrast oranları W3C WCAG standartlarına uygun olmalı
+
