@@ -9,7 +9,9 @@ import {
   query,
   where,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
+  orderBy,
+  limit
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -17,12 +19,11 @@ export interface Group {
   id: string;
   name: string;
   description: string;
-  image?: string;
-  createdAt: Date;
+  image: string;
   ownerId: string;
   members: string[];
   tags: string[];
-  isPrivate: boolean;
+  createdAt: any;
 }
 
 export interface GroupCreateData {
@@ -101,71 +102,69 @@ export const deleteGroup = async (groupId: string, userId: string): Promise<void
 // Gruba katıl
 export const joinGroup = async (groupId: string, userId: string): Promise<void> => {
   try {
-    const group = await getGroupById(groupId);
-    if (!group) throw new Error('Grup bulunamadı');
-    if (group.members.includes(userId)) throw new Error('Zaten grupta üyesiniz');
-
-    await updateDoc(doc(db, 'groups', groupId), {
+    const groupRef = doc(db, 'groups', groupId);
+    await updateDoc(groupRef, {
       members: arrayUnion(userId)
     });
-  } catch (error: any) {
-    throw new Error('Gruba katılınamadı: ' + error.message);
+  } catch (error) {
+    console.error('Gruba katılma hatası:', error);
+    throw error;
   }
 };
 
 // Gruptan ayrıl
 export const leaveGroup = async (groupId: string, userId: string): Promise<void> => {
   try {
-    const group = await getGroupById(groupId);
-    if (!group) throw new Error('Grup bulunamadı');
-    if (!group.members.includes(userId)) throw new Error('Grupta üye değilsiniz');
-    if (group.ownerId === userId) throw new Error('Grup sahibi gruptan ayrılamaz');
-
-    await updateDoc(doc(db, 'groups', groupId), {
+    const groupRef = doc(db, 'groups', groupId);
+    await updateDoc(groupRef, {
       members: arrayRemove(userId)
     });
-  } catch (error: any) {
-    throw new Error('Gruptan ayrılınamadı: ' + error.message);
+  } catch (error) {
+    console.error('Gruptan ayrılma hatası:', error);
+    throw error;
   }
 };
 
 // Kullanıcının gruplarını getir
 export const getUserGroups = async (userId: string): Promise<Group[]> => {
   try {
+    const groupsRef = collection(db, 'groups');
     const q = query(
-      collection(db, 'groups'),
-      where('members', 'array-contains', userId)
+      groupsRef,
+      where('members', 'array-contains', userId),
+      orderBy('createdAt', 'desc')
     );
-    
+
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
-      ...doc.data() as Omit<Group, 'id'>
-    }));
-  } catch (error: any) {
-    throw new Error('Gruplar alınamadı: ' + error.message);
+      ...doc.data()
+    })) as Group[];
+  } catch (error) {
+    console.error('Kullanıcı grupları getirme hatası:', error);
+    return [];
   }
 };
 
-// Grup ara
-export const searchGroups = async (query: string): Promise<Group[]> => {
+// Grupları ara
+export const searchGroups = async (searchQuery: string): Promise<Group[]> => {
   try {
-    const q = query.toLowerCase();
-    const querySnapshot = await getDocs(collection(db, 'groups'));
-    
-    return querySnapshot.docs
-      .map(doc => ({
-        id: doc.id,
-        ...doc.data() as Omit<Group, 'id'>
-      }))
-      .filter(group => 
-        !group.isPrivate && (
-          group.name.toLowerCase().includes(q) ||
-          group.description.toLowerCase().includes(q) ||
-          group.tags.some(tag => tag.toLowerCase().includes(q))
-        )
-      );
-  } catch (error: any) {
-    throw new Error('Grup arama hatası: ' + error.message);
+    const groupsRef = collection(db, 'groups');
+    const q = query(
+      groupsRef,
+      where('name', '>=', searchQuery),
+      where('name', '<=', searchQuery + '\uf8ff'),
+      orderBy('name'),
+      limit(20)
+    );
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Group[];
+  } catch (error) {
+    console.error('Grup arama hatası:', error);
+    return [];
   }
 }; 

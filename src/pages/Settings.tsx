@@ -15,7 +15,13 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  useTheme as useMuiTheme,
+  useMediaQuery,
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -26,6 +32,8 @@ import {
   sendPasswordReset,
   UserSettings
 } from '../backend/services/userService';
+import { useTheme } from '../contexts/ThemeContext';
+import { DarkMode, LightMode } from '@mui/icons-material';
 
 const Settings = () => {
   const { currentUser } = useAuth();
@@ -43,6 +51,10 @@ const Settings = () => {
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  const { mode, toggleTheme } = useTheme();
+  const theme = useMuiTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Ayarları yükle
   useEffect(() => {
@@ -143,168 +155,208 @@ const Settings = () => {
   }
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Ayarlar
-        </Typography>
-
-        {/* Genel Ayarlar */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            Genel Ayarlar
+    <Box sx={{
+      minHeight: 'calc(100vh - 64px)',
+      width: '100vw',
+      display: 'flex',
+      alignItems: 'flex-start',
+      justifyContent: 'center',
+      position: 'fixed',
+      top: 64,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      overflowY: 'auto',
+      backgroundColor: 'white',
+    }}>
+      <Container maxWidth="md" sx={{ my: { xs: 2, sm: 4 } }}>
+        <Paper sx={{ 
+          p: { xs: 2, sm: 4 }, 
+          width: '100%',
+          borderRadius: { xs: isMobile ? 0 : 2, sm: 2 },
+          boxShadow: isMobile ? 'none' : theme => `0 8px 24px ${theme.palette.primary.light}25`,
+        }}>
+          <Typography variant="h4" gutterBottom>
+            Ayarlar
           </Typography>
-          
-          <FormControlLabel
-            control={
-              <Switch
-                checked={settings.emailNotifications}
-                onChange={handleSettingChange('emailNotifications')}
+
+          <List>
+            <ListItem>
+              <ListItemText 
+                primary="Tema" 
+                secondary={mode === 'light' ? 'Açık tema' : 'Koyu tema'} 
               />
-            }
-            label="Email Bildirimleri"
-          />
-          
-          <FormControlLabel
-            control={
-              <Switch
-                checked={settings.privateProfile}
-                onChange={handleSettingChange('privateProfile')}
-              />
-            }
-            label="Gizli Profil"
-          />
+              <ListItemSecondaryAction>
+                <Switch
+                  edge="end"
+                  checked={mode === 'dark'}
+                  onChange={toggleTheme}
+                  icon={<LightMode />}
+                  checkedIcon={<DarkMode />}
+                />
+              </ListItemSecondaryAction>
+            </ListItem>
+            <Divider />
+            {/* Diğer ayarlar buraya eklenebilir */}
+          </List>
 
-          <FormControl fullWidth sx={{ mt: 2 }}>
-            <InputLabel>Tema</InputLabel>
-            <Select
-              value={settings.theme}
-              label="Tema"
-              onChange={(e) => handleSettingChange('theme')({ 
-                target: { value: e.target.value } 
-              } as any)}
+          {/* Genel Ayarlar */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" gutterBottom>
+              Genel Ayarlar
+            </Typography>
+            
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={settings.emailNotifications}
+                  onChange={handleSettingChange('emailNotifications')}
+                />
+              }
+              label="Email Bildirimleri"
+            />
+            
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={settings.privateProfile}
+                  onChange={handleSettingChange('privateProfile')}
+                />
+              }
+              label="Gizli Profil"
+            />
+
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel>Tema</InputLabel>
+              <Select
+                value={settings.theme}
+                label="Tema"
+                onChange={(e) => handleSettingChange('theme')({ 
+                  target: { value: e.target.value } 
+                } as any)}
+              >
+                <MenuItem value="light">Açık</MenuItem>
+                <MenuItem value="dark">Koyu</MenuItem>
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel>Dil</InputLabel>
+              <Select
+                value={settings.language}
+                label="Dil"
+                onChange={(e) => handleSettingChange('language')({ 
+                  target: { value: e.target.value } 
+                } as any)}
+              >
+                <MenuItem value="tr">Türkçe</MenuItem>
+                <MenuItem value="en">English</MenuItem>
+              </Select>
+            </FormControl>
+
+            <Button
+              variant="contained"
+              onClick={handleSaveSettings}
+              disabled={loading}
+              sx={{ mt: 2 }}
             >
-              <MenuItem value="light">Açık</MenuItem>
-              <MenuItem value="dark">Koyu</MenuItem>
-            </Select>
-          </FormControl>
+              {loading ? <CircularProgress size={24} /> : 'Ayarları Kaydet'}
+            </Button>
+          </Box>
 
-          <FormControl fullWidth sx={{ mt: 2 }}>
-            <InputLabel>Dil</InputLabel>
-            <Select
-              value={settings.language}
-              label="Dil"
-              onChange={(e) => handleSettingChange('language')({ 
-                target: { value: e.target.value } 
-              } as any)}
+          <Divider sx={{ my: 4 }} />
+
+          {/* Email Değiştirme */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" gutterBottom>
+              Email Değiştir
+            </Typography>
+            
+            <TextField
+              fullWidth
+              label="Yeni Email"
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              sx={{ mb: 2 }}
+            />
+            
+            <Button
+              variant="contained"
+              onClick={handleEmailChange}
+              disabled={loading || !newEmail}
             >
-              <MenuItem value="tr">Türkçe</MenuItem>
-              <MenuItem value="en">English</MenuItem>
-            </Select>
-          </FormControl>
+              Email Değiştir
+            </Button>
+          </Box>
 
-          <Button
-            variant="contained"
-            onClick={handleSaveSettings}
-            disabled={loading}
-            sx={{ mt: 2 }}
+          <Divider sx={{ my: 4 }} />
+
+          {/* Şifre Değiştirme */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h6" gutterBottom>
+              Şifre Değiştir
+            </Typography>
+            
+            <TextField
+              fullWidth
+              label="Yeni Şifre"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              sx={{ mb: 2 }}
+            />
+            
+            <TextField
+              fullWidth
+              label="Şifre Tekrar"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              sx={{ mb: 2 }}
+            />
+            
+            <Button
+              variant="contained"
+              onClick={handlePasswordChange}
+              disabled={loading || !newPassword || !confirmPassword}
+              sx={{ mr: 2 }}
+            >
+              Şifre Değiştir
+            </Button>
+
+            <Button
+              variant="outlined"
+              onClick={handlePasswordReset}
+              disabled={loading}
+            >
+              Şifremi Unuttum
+            </Button>
+          </Box>
+
+          {/* Bildirimler */}
+          <Snackbar
+            open={!!error}
+            autoHideDuration={6000}
+            onClose={() => setError(null)}
           >
-            {loading ? <CircularProgress size={24} /> : 'Ayarları Kaydet'}
-          </Button>
-        </Box>
+            <Alert severity="error" onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          </Snackbar>
 
-        <Divider sx={{ my: 4 }} />
-
-        {/* Email Değiştirme */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            Email Değiştir
-          </Typography>
-          
-          <TextField
-            fullWidth
-            label="Yeni Email"
-            type="email"
-            value={newEmail}
-            onChange={(e) => setNewEmail(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          
-          <Button
-            variant="contained"
-            onClick={handleEmailChange}
-            disabled={loading || !newEmail}
+          <Snackbar
+            open={!!success}
+            autoHideDuration={6000}
+            onClose={() => setSuccess(null)}
           >
-            Email Değiştir
-          </Button>
-        </Box>
-
-        <Divider sx={{ my: 4 }} />
-
-        {/* Şifre Değiştirme */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            Şifre Değiştir
-          </Typography>
-          
-          <TextField
-            fullWidth
-            label="Yeni Şifre"
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          
-          <TextField
-            fullWidth
-            label="Şifre Tekrar"
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          
-          <Button
-            variant="contained"
-            onClick={handlePasswordChange}
-            disabled={loading || !newPassword || !confirmPassword}
-            sx={{ mr: 2 }}
-          >
-            Şifre Değiştir
-          </Button>
-
-          <Button
-            variant="outlined"
-            onClick={handlePasswordReset}
-            disabled={loading}
-          >
-            Şifremi Unuttum
-          </Button>
-        </Box>
-
-        {/* Bildirimler */}
-        <Snackbar
-          open={!!error}
-          autoHideDuration={6000}
-          onClose={() => setError(null)}
-        >
-          <Alert severity="error" onClose={() => setError(null)}>
-            {error}
-          </Alert>
-        </Snackbar>
-
-        <Snackbar
-          open={!!success}
-          autoHideDuration={6000}
-          onClose={() => setSuccess(null)}
-        >
-          <Alert severity="success" onClose={() => setSuccess(null)}>
-            {success}
-          </Alert>
-        </Snackbar>
-      </Paper>
-    </Container>
+            <Alert severity="success" onClose={() => setSuccess(null)}>
+              {success}
+            </Alert>
+          </Snackbar>
+        </Paper>
+      </Container>
+    </Box>
   );
 };
 

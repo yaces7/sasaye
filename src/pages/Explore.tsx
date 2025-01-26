@@ -9,14 +9,45 @@ import {
   CircularProgress,
   Tabs,
   Tab,
-  Alert
+  Alert,
+  Card,
+  CardContent,
+  CardMedia,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  Chip,
+  Stack,
+  Avatar,
 } from '@mui/material';
-import { Search as SearchIcon } from '@mui/icons-material';
+import {
+  Search as SearchIcon,
+  Add as AddIcon,
+  Favorite as FavoriteIcon,
+  Comment as CommentIcon,
+  Share as ShareIcon,
+} from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import GroupCard from '../components/groups/GroupCard';
 import VideoCard from '../components/video/VideoCard';
 import { searchGroups, Group, getUserGroups } from '../backend/services/groupService';
 import { searchVideos, Video, getAllVideos } from '../backend/services/videoService';
+import { db } from '../backend/firebase';
+import {
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  getDocs,
+  serverTimestamp,
+  updateDoc,
+  arrayUnion,
+  doc,
+} from 'firebase/firestore';
+import { uploadImage } from '../backend/services/uploadService';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -44,6 +75,19 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
+interface Post {
+  id: string;
+  userId: string;
+  username: string;
+  userAvatar: string;
+  content: string;
+  imageUrl?: string;
+  tags: string[];
+  likes: string[];
+  comments: number;
+  createdAt: any;
+}
+
 const Explore = () => {
   const { currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -55,6 +99,16 @@ const Explore = () => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [filteredGroups, setFilteredGroups] = useState<Group[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [open, setOpen] = useState(false);
+  const [newPost, setNewPost] = useState({
+    content: '',
+    imageFile: null as File | null,
+    tags: '',
+  });
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [uploadProgress, setUploadProgress] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Tab değişikliği
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -121,6 +175,96 @@ const Explore = () => {
 
   const handleSearch = (value: string) => {
     setSearchQuery(value);
+  };
+
+  // Gönderileri getir
+  const fetchPosts = async () => {
+    try {
+      const postsRef = collection(db, 'posts');
+      const q = query(postsRef, orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      
+      const fetchedPosts = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Post[];
+
+      // Kullanıcının ilgi alanlarına göre sırala
+      if (currentUser?.interests) {
+        fetchedPosts.sort((a, b) => {
+          const aMatchCount = a.tags.filter(tag => currentUser.interests.includes(tag)).length;
+          const bMatchCount = b.tags.filter(tag => currentUser.interests.includes(tag)).length;
+          return bMatchCount - aMatchCount;
+        });
+      }
+
+      setPosts(fetchedPosts);
+    } catch (error) {
+      console.error('Gönderiler yüklenirken hata:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchPosts();
+  }, [currentUser]);
+
+  // Yeni gönderi oluştur
+  const handleCreatePost = async () => {
+    try {
+      setUploadProgress(true);
+      setUploadError(null);
+
+      let imageUrl = '';
+      if (newPost.imageFile) {
+        const uploadResult = await uploadImage(newPost.imageFile);
+        imageUrl = uploadResult.url;
+      }
+
+      const tags = newPost.tags.split(',').map(tag => tag.trim().toLowerCase());
+      
+      await addDoc(collection(db, 'posts'), {
+        userId: currentUser?.uid,
+        username: currentUser?.username,
+        userAvatar: currentUser?.avatar,
+        content: newPost.content,
+        imageUrl,
+        tags,
+        likes: [],
+        comments: 0,
+        createdAt: serverTimestamp(),
+      });
+
+      setOpen(false);
+      setNewPost({ content: '', imageFile: null, tags: '' });
+      fetchPosts();
+    } catch (error: any) {
+      setUploadError(error.message);
+      console.error('Gönderi oluşturulurken hata:', error);
+    } finally {
+      setUploadProgress(false);
+    }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setNewPost({ ...newPost, imageFile: file });
+    }
+  };
+
+  // Gönderiyi beğen
+  const handleLike = async (postId: string) => {
+    if (!currentUser) return;
+
+    try {
+      const postRef = doc(db, 'posts', postId);
+      await updateDoc(postRef, {
+        likes: arrayUnion(currentUser.uid)
+      });
+      fetchPosts();
+    } catch (error) {
+      console.error('Beğeni eklenirken hata:', error);
+    }
   };
 
   return (
@@ -209,6 +353,131 @@ const Explore = () => {
           ))}
         </Grid>
       </TabPanel>
+
+      {/* Gönderi Oluşturma Butonu */}
+      <Button
+        variant="contained"
+        startIcon={<AddIcon />}
+        onClick={() => setOpen(true)}
+        sx={{ mb: 3 }}
+      >
+        Yeni Gönderi Oluştur
+      </Button>
+
+      {/* Gönderi Listesi */}
+      <Grid container spacing={3}>
+        {posts.map((post) => (
+          <Grid item xs={12} sm={6} md={4} key={post.id}>
+            <Card>
+              {post.imageUrl && (
+                <CardMedia
+                  component="img"
+                  height="200"
+                  image={post.imageUrl}
+                  alt="Post image"
+                />
+              )}
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Avatar src={post.userAvatar} sx={{ mr: 1 }}>
+                    {post.username[0]}
+                  </Avatar>
+                  <Typography variant="subtitle1">{post.username}</Typography>
+                </Box>
+                <Typography variant="body1" sx={{ mb: 2 }}>
+                  {post.content}
+                </Typography>
+                <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                  {post.tags.map((tag) => (
+                    <Chip key={tag} label={`#${tag}`} size="small" />
+                  ))}
+                </Stack>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <IconButton onClick={() => handleLike(post.id)} color={post.likes.includes(currentUser?.uid || '') ? 'primary' : 'default'}>
+                    <FavoriteIcon />
+                    <Typography variant="caption" sx={{ ml: 1 }}>
+                      {post.likes.length}
+                    </Typography>
+                  </IconButton>
+                  <IconButton>
+                    <CommentIcon />
+                    <Typography variant="caption" sx={{ ml: 1 }}>
+                      {post.comments}
+                    </Typography>
+                  </IconButton>
+                  <IconButton>
+                    <ShareIcon />
+                  </IconButton>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* Gönderi Oluşturma Dialog */}
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Yeni Gönderi Oluştur</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            label="Ne düşünüyorsun?"
+            value={newPost.content}
+            onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
+            sx={{ mb: 2, mt: 2 }}
+          />
+          <Box sx={{ mb: 2 }}>
+            <input
+              accept="image/*"
+              style={{ display: 'none' }}
+              id="post-image-upload"
+              type="file"
+              onChange={handleFileSelect}
+            />
+            <label htmlFor="post-image-upload">
+              <Button
+                variant="outlined"
+                component="span"
+                fullWidth
+                startIcon={<AddIcon />}
+              >
+                Fotoğraf Ekle
+              </Button>
+            </label>
+            {newPost.imageFile && (
+              <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+                Seçilen dosya: {newPost.imageFile.name}
+              </Typography>
+            )}
+          </Box>
+          <TextField
+            fullWidth
+            label="Etiketler (virgülle ayırın)"
+            value={newPost.tags}
+            onChange={(e) => setNewPost({ ...newPost, tags: e.target.value })}
+            helperText="Örnek: teknoloji, spor, müzik"
+          />
+          {uploadError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {uploadError}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpen(false)} disabled={uploadProgress}>
+            İptal
+          </Button>
+          <Button 
+            onClick={handleCreatePost} 
+            variant="contained"
+            disabled={uploadProgress}
+          >
+            {uploadProgress ? <CircularProgress size={24} /> : 'Paylaş'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

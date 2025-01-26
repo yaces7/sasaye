@@ -21,7 +21,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 
-export interface User {
+export interface AppUser {
   id: string;
   name: string;
   email: string;
@@ -70,60 +70,27 @@ export const updateUserSettings = async (userId: string, settings: Partial<UserS
 };
 
 // Kullanıcı oluştur
-export const createUser = async (name: string, email: string, password: string): Promise<User> => {
+export const createUser = async (user: AppUser, userData: {
+  username: string;
+  customId: string;
+}): Promise<void> => {
   try {
-    // Firebase Authentication'da kullanıcı oluştur
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const firebaseUser = userCredential.user;
-
-    // Kullanıcı profilini güncelle
-    await updateProfile(firebaseUser, {
-      displayName: name
-    });
-
-    // Email doğrulama gönder
-    await sendEmailVerification(firebaseUser);
-
-    const customId = generateCustomId();
-    const userData = {
-      name,
-      email,
-      customId,
-      createdAt: new Date(),
-      isEmailVerified: false,
-      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}`
-    };
-
-    // Firestore'a kullanıcı verilerini kaydet
-    await setDoc(doc(db, 'users', firebaseUser.uid), userData);
-
-    return {
-      id: firebaseUser.uid,
-      ...userData
-    };
-  } catch (error: any) {
-    if (error.code === 'auth/email-already-in-use') {
-      throw new Error('Bu email adresi zaten kullanımda');
-    } else if (error.code === 'auth/invalid-email') {
-      throw new Error('Geçersiz email adresi');
-    } else if (error.code === 'auth/operation-not-allowed') {
-      throw new Error('Email/şifre girişi devre dışı bırakılmış');
-    } else if (error.code === 'auth/weak-password') {
-      throw new Error('Şifre çok zayıf');
-    }
-    throw new Error('Kullanıcı oluşturulamadı: ' + error.message);
+    // Kullanıcı dokümanı oluşturma işlemleri burada yapılacak
+  } catch (error) {
+    console.error('Kullanıcı oluşturma hatası:', error);
+    throw error;
   }
 };
 
 // Kullanıcı getir
-export const getUserById = async (userId: string): Promise<User | null> => {
+export const getUserById = async (userId: string): Promise<AppUser | null> => {
   try {
     const userDoc = await getDoc(doc(db, 'users', userId));
     if (!userDoc.exists()) return null;
 
     return {
       id: userDoc.id,
-      ...userDoc.data() as Omit<User, 'id'>
+      ...userDoc.data() as Omit<AppUser, 'id'>
     };
   } catch (error: any) {
     throw new Error('Kullanıcı bilgileri alınamadı: ' + error.message);
@@ -131,7 +98,7 @@ export const getUserById = async (userId: string): Promise<User | null> => {
 };
 
 // Custom ID ile kullanıcı getir
-export const getUserByCustomId = async (customId: string): Promise<User | null> => {
+export const getUserByCustomId = async (customId: string): Promise<AppUser | null> => {
   try {
     const q = query(collection(db, 'users'), where('customId', '==', customId));
     const querySnapshot = await getDocs(q);
@@ -141,7 +108,7 @@ export const getUserByCustomId = async (customId: string): Promise<User | null> 
 
     return {
       id: userDoc.id,
-      ...userDoc.data() as Omit<User, 'id'>
+      ...userDoc.data() as Omit<AppUser, 'id'>
     };
   } catch (error: any) {
     throw new Error('Kullanıcı bilgileri alınamadı: ' + error.message);
@@ -149,7 +116,7 @@ export const getUserByCustomId = async (customId: string): Promise<User | null> 
 };
 
 // İsim ile kullanıcı ara
-export const getUserByName = async (name: string): Promise<User | null> => {
+export const getUserByName = async (name: string): Promise<AppUser | null> => {
   try {
     const q = query(collection(db, 'users'), where('name', '==', name));
     const querySnapshot = await getDocs(q);
@@ -159,7 +126,7 @@ export const getUserByName = async (name: string): Promise<User | null> => {
 
     return {
       id: userDoc.id,
-      ...userDoc.data() as Omit<User, 'id'>
+      ...userDoc.data() as Omit<AppUser, 'id'>
     };
   } catch (error: any) {
     throw new Error('Kullanıcı bilgileri alınamadı: ' + error.message);
@@ -167,7 +134,7 @@ export const getUserByName = async (name: string): Promise<User | null> => {
 };
 
 // Kullanıcı profilini güncelle
-export const updateUserProfile = async (userId: string, data: Partial<User>): Promise<void> => {
+export const updateUserProfile = async (userId: string, data: Partial<AppUser>): Promise<void> => {
   try {
     await updateDoc(doc(db, 'users', userId), data);
   } catch (error: any) {
@@ -222,21 +189,12 @@ const generateCustomId = (): string => {
 // Email doğrulama durumunu kontrol et
 export const checkEmailVerification = async (): Promise<boolean> => {
   try {
-    const firebaseUser = auth.currentUser;
-    if (!firebaseUser) return false;
-
-    // Firebase'den güncel kullanıcı bilgilerini al
-    await firebaseUser.reload();
-    
-    // Firestore'daki doğrulama durumunu güncelle
-    if (firebaseUser.emailVerified) {
-      await updateDoc(doc(db, 'users', firebaseUser.uid), {
-        isEmailVerified: true
-      });
+    if (auth.currentUser) {
+      await auth.currentUser.reload();
+      return auth.currentUser.emailVerified;
     }
-
-    return firebaseUser.emailVerified;
-  } catch (error: any) {
+    return false;
+  } catch (error) {
     console.error('Email doğrulama kontrolü hatası:', error);
     return false;
   }
@@ -245,12 +203,15 @@ export const checkEmailVerification = async (): Promise<boolean> => {
 // Doğrulama emailini tekrar gönder
 export const resendVerificationEmail = async (): Promise<void> => {
   try {
-    const firebaseUser = auth.currentUser;
-    if (!firebaseUser) throw new Error('Kullanıcı oturumu bulunamadı');
-    
-    await sendEmailVerification(firebaseUser);
-  } catch (error: any) {
-    throw new Error('Doğrulama emaili gönderilemedi: ' + error.message);
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      await sendEmailVerification(currentUser);
+    } else {
+      throw new Error('Kullanıcı oturumu bulunamadı');
+    }
+  } catch (error) {
+    console.error('Doğrulama emaili gönderme hatası:', error);
+    throw error;
   }
 };
 

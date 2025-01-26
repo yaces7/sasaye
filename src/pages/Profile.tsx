@@ -8,7 +8,8 @@ import {
   Paper,
   Grid,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  Divider
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { auth } from '../backend/firebase';
@@ -36,56 +37,99 @@ const Profile = () => {
 
   if (!currentUser) {
     return (
-      <Container maxWidth="md" sx={{ mt: 4 }}>
+      <Box sx={{
+        minHeight: 'calc(100vh - 64px)',
+        width: '100vw',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'fixed',
+        top: 64,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        overflowY: 'auto',
+        backgroundColor: 'white',
+      }}>
         <Typography color="error">
           Bu sayfayı görüntülemek için giriş yapmalısınız.
         </Typography>
-      </Container>
+      </Box>
     );
   }
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4 }}>
-      <Paper sx={{ p: 4 }}>
-        <Grid container spacing={4}>
-          <Grid item xs={12} sm={4} sx={{ textAlign: 'center' }}>
-            <Avatar
-              src={currentUser.avatar}
-              sx={{
-                width: isMobile ? 120 : 200,
-                height: isMobile ? 120 : 200,
-                mx: 'auto',
-                mb: 2
-              }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={8}>
-            <Typography variant="h4" gutterBottom>
-              {currentUser.name}
-            </Typography>
-            <Typography variant="body1" color="text.secondary" paragraph>
-              {currentUser.email}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" paragraph>
-              ID: {currentUser.customId}
-            </Typography>
-            {currentUser.bio && (
-              <Typography variant="body1" paragraph>
+    <Box sx={{
+      minHeight: 'calc(100vh - 64px)',
+      width: '100vw',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'fixed',
+      top: 64,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      overflowY: 'auto',
+      backgroundColor: 'white',
+    }}>
+      <Container maxWidth="md" sx={{ my: { xs: 0, sm: 4 } }}>
+        <Paper sx={{ 
+          p: { xs: 3, sm: 6 }, 
+          width: '100%', 
+          textAlign: 'center',
+          borderRadius: { xs: isMobile ? 0 : 2, sm: 2 },
+          boxShadow: isMobile ? 'none' : theme => `0 8px 24px ${theme.palette.primary.light}25`,
+          ...(isMobile && {
+            minHeight: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+          }),
+        }}>
+          <Avatar
+            src={currentUser.avatar}
+            sx={{
+              width: isMobile ? 80 : 150,
+              height: isMobile ? 80 : 150,
+              mb: 3,
+              mx: 'auto',
+              border: `2px solid ${theme.palette.primary.main}`
+            }}
+          />
+          <Typography variant="h3" gutterBottom>
+            {currentUser.name}
+          </Typography>
+          <Typography variant="h5" color="text.secondary">
+            {currentUser.email}
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
+            ID: {currentUser.customId}
+          </Typography>
+          <Divider sx={{ my: 3 }} />
+          {currentUser.bio && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="h6" gutterBottom fontWeight="medium">
+                Hakkımda
+              </Typography>
+              <Typography variant="body1">
                 {currentUser.bio}
               </Typography>
-            )}
-            <Button
-              variant="contained"
-              color="error"
-              onClick={handleLogout}
-              disabled={loading}
-            >
-              {loading ? 'Çıkış Yapılıyor...' : 'Çıkış Yap'}
-            </Button>
-          </Grid>
-        </Grid>
-      </Paper>
-    </Container>
+            </Box>
+          )}
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleLogout}
+            disabled={loading}
+            size="large"
+            sx={{ mt: 4 }}
+          >
+            {loading ? 'Çıkış Yapılıyor...' : 'Çıkış Yap'}
+          </Button>
+        </Paper>
+      </Container>
+    </Box>
   );
 };
 

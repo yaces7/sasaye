@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Container, Grid, Typography, Button, Divider } from '@mui/material';
+import { Box, Container, Typography, Button, Paper, Grid, useTheme, useMediaQuery, Divider } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import GroupCard from '../components/groups/GroupCard';
 import CreateGroupModal from '../components/groups/CreateGroupModal';
@@ -16,6 +16,8 @@ interface Group {
 }
 
 const Groups = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [myGroups, setMyGroups] = useState<Group[]>([]);
 
@@ -90,65 +92,87 @@ const Groups = () => {
   };
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h4" component="h1">
-          Gruplar
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          size="large"
-          onClick={() => setIsCreateModalOpen(true)}
-        >
-          Yeni Grup Oluştur
-        </Button>
-      </Box>
+    <Box sx={{
+      minHeight: 'calc(100vh - 64px)',
+      width: '100vw',
+      display: 'flex',
+      alignItems: 'flex-start',
+      justifyContent: 'center',
+      position: 'fixed',
+      top: 64,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      overflowY: 'auto',
+      backgroundColor: 'white',
+    }}>
+      <Container maxWidth="lg" sx={{ my: { xs: 2, sm: 4 } }}>
+        <Paper sx={{ 
+          p: { xs: 2, sm: 4 }, 
+          width: '100%',
+          borderRadius: { xs: isMobile ? 0 : 2, sm: 2 },
+          boxShadow: isMobile ? 'none' : theme => `0 8px 24px ${theme.palette.primary.light}25`,
+        }}>
+          <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h4" component="h1">
+              Gruplar
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              size="large"
+              onClick={() => setIsCreateModalOpen(true)}
+            >
+              Yeni Grup Oluştur
+            </Button>
+          </Box>
 
-      {/* Katıldığın Gruplar */}
-      <Typography variant="h5" gutterBottom>
-        Katıldığın Gruplar
-      </Typography>
-      {myGroups.length === 0 ? (
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 6 }}>
-          Henüz hiçbir gruba katılmadınız.
-        </Typography>
-      ) : (
-        <Grid container spacing={3} sx={{ mb: 6 }}>
-          {myGroups.map((group) => (
-            <Grid item xs={12} sm={6} md={4} key={group.id}>
-              <GroupCard
-                group={group}
-                onLeave={handleLeaveGroup}
-              />
+          {/* Katıldığın Gruplar */}
+          <Typography variant="h5" gutterBottom>
+            Katıldığın Gruplar
+          </Typography>
+          {myGroups.length === 0 ? (
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 6 }}>
+              Henüz hiçbir gruba katılmadınız.
+            </Typography>
+          ) : (
+            <Grid container spacing={3} sx={{ mb: 6 }}>
+              {myGroups.map((group) => (
+                <Grid item xs={12} sm={6} md={4} key={group.id}>
+                  <GroupCard
+                    group={group}
+                    onLeave={handleLeaveGroup}
+                  />
+                </Grid>
+              ))}
             </Grid>
-          ))}
-        </Grid>
-      )}
+          )}
 
-      <Divider sx={{ my: 4 }} />
+          <Divider sx={{ my: 4 }} />
 
-      {/* Keşfet */}
-      <Typography variant="h5" gutterBottom>
-        Keşfet
-      </Typography>
-      <Grid container spacing={3}>
-        {availableGroups.map((group) => (
-          <Grid item xs={12} sm={6} md={4} key={group.id}>
-            <GroupCard
-              group={group}
-              onJoin={handleJoinGroup}
-            />
+          {/* Keşfet */}
+          <Typography variant="h5" gutterBottom>
+            Keşfet
+          </Typography>
+          <Grid container spacing={3}>
+            {availableGroups.map((group) => (
+              <Grid item xs={12} sm={6} md={4} key={group.id}>
+                <GroupCard
+                  group={group}
+                  onJoin={handleJoinGroup}
+                />
+              </Grid>
+            ))}
           </Grid>
-        ))}
-      </Grid>
 
-      <CreateGroupModal
-        open={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onCreateGroup={handleCreateGroup}
-      />
-    </Container>
+          <CreateGroupModal
+            open={isCreateModalOpen}
+            onClose={() => setIsCreateModalOpen(false)}
+            onCreateGroup={handleCreateGroup}
+          />
+        </Paper>
+      </Container>
+    </Box>
   );
 };
 

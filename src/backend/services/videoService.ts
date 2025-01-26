@@ -9,10 +9,10 @@ import {
   getDoc,
   deleteDoc,
   updateDoc,
-  Timestamp 
+  limit
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { uploadFile, deleteFile, validateFileSize, validateFileType } from './uploadService';
+import { uploadVideo as uploadVideoToCloud, deleteFile, validateFileSize, validateFileType } from './uploadService';
 
 export interface Video {
   id: string;
@@ -29,6 +29,9 @@ export interface Video {
   views: number;
   isReel: boolean;
   duration?: number;
+  username: string;
+  comments: number;
+  tags: string[];
 }
 
 export interface VideoUploadData {
@@ -43,7 +46,7 @@ export interface VideoUploadData {
 export const uploadVideo = async (userId: string, data: VideoUploadData): Promise<Video> => {
   try {
     // Video dosya kontrolü
-    if (!validateFileSize(data.videoFile, 100)) { // 100MB limit
+    if (!validateFileSize(data.videoFile, 100)) {
       throw new Error('Video boyutu çok büyük! Maximum 100MB olabilir.');
     }
 
@@ -52,17 +55,7 @@ export const uploadVideo = async (userId: string, data: VideoUploadData): Promis
     }
 
     // Video'yu Cloudinary'ye yükle
-    const videoUpload = await uploadFile(data.videoFile);
-    let thumbnailUrl = undefined;
-
-    // Eğer thumbnail varsa onu da yükle
-    if (data.thumbnailFile) {
-      if (!validateFileType(data.thumbnailFile, ['image/jpeg', 'image/png'])) {
-        throw new Error('Geçersiz thumbnail formatı! Sadece JPG ve PNG dosyaları kabul edilir.');
-      }
-      const thumbnailUpload = await uploadFile(data.thumbnailFile);
-      thumbnailUrl = thumbnailUpload.url;
-    }
+    const videoUpload = await uploadVideoToCloud(data.videoFile);
 
     // Video bilgilerini Firestore'a kaydet
     const videoData: Omit<Video, 'id'> = {
@@ -71,12 +64,15 @@ export const uploadVideo = async (userId: string, data: VideoUploadData): Promis
       title: data.title,
       description: data.description,
       videoUrl: videoUpload.url,
-      thumbnailUrl,
+      thumbnailUrl: undefined,
       cloudinaryPublicId: videoUpload.publicId,
       createdAt: new Date(),
       likes: 0,
       views: 0,
-      isReel: data.isReel || false
+      isReel: data.isReel || false,
+      username: '',
+      comments: 0,
+      tags: []
     };
 
     const docRef = await addDoc(collection(db, 'videos'), videoData);
@@ -107,7 +103,7 @@ export const deleteVideo = async (videoId: string, userId: string): Promise<void
     }
 
     // Cloudinary'den videoyu sil
-    await deleteFile(videoData.cloudinaryPublicId);
+    await deleteFile(videoData.cloudinaryPublicId, 'video');
     
     // Firestore'dan video bilgilerini sil
     await deleteDoc(doc(db, 'videos', videoId));
@@ -117,21 +113,23 @@ export const deleteVideo = async (videoId: string, userId: string): Promise<void
 };
 
 // Tüm videoları getir
-export const getAllVideos = async (isReel: boolean = false): Promise<Video[]> => {
+export const getAllVideos = async (): Promise<Video[]> => {
   try {
+    const videosRef = collection(db, 'videos');
     const q = query(
-      collection(db, 'videos'),
-      where('isReel', '==', isReel),
-      orderBy('createdAt', 'desc')
+      videosRef,
+      orderBy('createdAt', 'desc'),
+      limit(20)
     );
-    
+
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
-      ...doc.data() as Omit<Video, 'id'>
-    }));
-  } catch (error: any) {
-    throw new Error('Videoları getirme hatası: ' + error.message);
+      ...doc.data()
+    })) as Video[];
+  } catch (error) {
+    console.error('Video getirme hatası:', error);
+    return [];
   }
 };
 
@@ -188,22 +186,25 @@ const updateVideoViews = async (videoId: string, newViewCount: number): Promise<
   }
 };
 
-// Video arama
-export const searchVideos = async (query: string): Promise<Video[]> => {
+// Videoları ara
+export const searchVideos = async (searchQuery: string): Promise<Video[]> => {
   try {
-    const q = query.toLowerCase();
-    const querySnapshot = await getDocs(collection(db, 'videos'));
-    
-    return querySnapshot.docs
-      .map(doc => ({
-        id: doc.id,
-        ...doc.data() as Omit<Video, 'id'>
-      }))
-      .filter(video => 
-        video.title.toLowerCase().includes(q) || 
-        video.description.toLowerCase().includes(q)
-      );
-  } catch (error: any) {
-    throw new Error('Video arama hatası: ' + error.message);
+    const videosRef = collection(db, 'videos');
+    const q = query(
+      videosRef,
+      where('title', '>=', searchQuery),
+      where('title', '<=', searchQuery + '\uf8ff'),
+      orderBy('title'),
+      limit(20)
+    );
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Video[];
+  } catch (error) {
+    console.error('Video arama hatası:', error);
+    return [];
   }
 }; 
