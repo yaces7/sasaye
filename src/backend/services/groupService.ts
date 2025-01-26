@@ -9,8 +9,7 @@ import {
   query,
   where,
   arrayUnion,
-  arrayRemove,
-  Timestamp
+  arrayRemove
 } from 'firebase/firestore';
 import { db } from '../firebase';
 

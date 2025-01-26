@@ -5,7 +5,7 @@ import GroupCard from '../components/groups/GroupCard';
 import CreateGroupModal from '../components/groups/CreateGroupModal';
 
 interface Group {
-  id: number;
+  id: string;
   name: string;
   description: string;
   memberCount: number;
@@ -21,7 +21,7 @@ const Groups = () => {
 
   const [availableGroups, setAvailableGroups] = useState<Group[]>([
     {
-      id: 1,
+      id: '1',
       name: 'React Developers',
       description: 'React geliştiricileri için topluluk',
       memberCount: 1250,
@@ -30,7 +30,7 @@ const Groups = () => {
       tags: ['React', 'JavaScript', 'Web Development'],
     },
     {
-      id: 2,
+      id: '2',
       name: 'TypeScript Türkiye',
       description: 'TypeScript öğrenenler ve kullananlar için grup',
       memberCount: 850,
@@ -39,7 +39,7 @@ const Groups = () => {
       tags: ['TypeScript', 'JavaScript', 'Programming'],
     },
     {
-      id: 3,
+      id: '3',
       name: 'UI/UX Tasarımcıları',
       description: 'Kullanıcı arayüzü ve deneyimi tasarımcıları',
       memberCount: 2100,
@@ -48,7 +48,7 @@ const Groups = () => {
       tags: ['UI', 'UX', 'Design'],
     },
     {
-      id: 4,
+      id: '4',
       name: 'Frontend Geliştiricileri',
       description: 'Frontend teknolojileri ve en iyi pratikler',
       memberCount: 1800,
@@ -60,7 +60,7 @@ const Groups = () => {
 
   const handleCreateGroup = (groupData: { name: string; description: string; tags: string[] }) => {
     const newGroup: Group = {
-      id: Date.now(),
+      id: Date.now().toString(),
       ...groupData,
       memberCount: 1,
       image: `https://source.unsplash.com/random/400x300?${groupData.tags[0] || 'group'}`,
@@ -71,7 +71,7 @@ const Groups = () => {
     setMyGroups([newGroup, ...myGroups]);
   };
 
-  const handleJoinGroup = (groupId: number) => {
+  const handleJoinGroup = (groupId: string) => {
     const group = availableGroups.find(g => g.id === groupId);
     if (group) {
       const updatedGroup: Group = { ...group, isJoined: true, isOwner: false };
@@ -80,7 +80,7 @@ const Groups = () => {
     }
   };
 
-  const handleLeaveGroup = (groupId: number) => {
+  const handleLeaveGroup = (groupId: string) => {
     const group = myGroups.find(g => g.id === groupId && !g.isOwner);
     if (group) {
       const updatedGroup: Group = { ...group, isJoined: false, isOwner: false };

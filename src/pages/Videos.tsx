@@ -4,33 +4,81 @@ import { VideoCall } from '@mui/icons-material';
 import VideoCard from '../components/video/VideoCard';
 import VideoUploadModal from '../components/video/VideoUploadModal';
 
+interface Video {
+  id: string;
+  title: string;
+  author: string;
+  views: number;
+  thumbnail: string;
+  userId: string;
+  userName: string;
+  description: string;
+  videoUrl: string;
+  uploadDate: Date;
+  duration: number;
+  cloudinaryPublicId: string;
+  createdAt: Date;
+  likes: number;
+  isReel: boolean;
+}
+
 const Videos = () => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [videos, setVideos] = useState([
+  const [videos, setVideos] = useState<Video[]>([
     {
-      id: 1,
+      id: "1",
       title: 'React ile Modern Web Geliştirme',
       author: 'Ahmet Yılmaz',
       views: 1200,
       thumbnail: 'https://source.unsplash.com/random/800x450?programming',
+      userId: '',
+      userName: '',
+      description: '',
+      videoUrl: '',
+      uploadDate: new Date(),
+      duration: 0,
+      cloudinaryPublicId: '',
+      createdAt: new Date(),
+      likes: 0,
+      isReel: false,
     },
     {
-      id: 2,
+      id: "2",
       title: 'TypeScript Temelleri',
       author: 'Ayşe Demir',
       views: 850,
       thumbnail: 'https://source.unsplash.com/random/800x450?coding',
+      userId: '',
+      userName: '',
+      description: '',
+      videoUrl: '',
+      uploadDate: new Date(),
+      duration: 0,
+      cloudinaryPublicId: '',
+      createdAt: new Date(),
+      likes: 0,
+      isReel: false,
     },
   ]);
 
   const handleVideoUpload = (videoData: { title: string; description: string; file: File }) => {
     // Simüle edilmiş video yükleme
-    const newVideo = {
-      id: videos.length + 1,
+    const newVideo: Video = {
+      id: (videos.length + 1).toString(),
       title: videoData.title,
       author: 'Ben',
       views: 0,
       thumbnail: URL.createObjectURL(videoData.file),
+      userId: '',
+      userName: '',
+      description: videoData.description,
+      videoUrl: '',
+      uploadDate: new Date(),
+      duration: 0,
+      cloudinaryPublicId: '',
+      createdAt: new Date(),
+      likes: 0,
+      isReel: false,
     };
 
     setVideos([newVideo, ...videos]);
