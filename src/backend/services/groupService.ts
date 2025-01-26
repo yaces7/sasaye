@@ -19,7 +19,7 @@ export interface Group {
   id: string;
   name: string;
   description: string;
-  image: string;
+  image?: string;
   ownerId: string;
   members: string[];
   tags: string[];

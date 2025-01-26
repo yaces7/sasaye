@@ -15,6 +15,7 @@ import GroupDetail from '../../pages/GroupDetail';
 import Videos from '../../pages/Videos';
 import Explore from '../../pages/Explore';
 import Reels from '../../pages/Reels';
+import VideoDetail from '../../pages/VideoDetail';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
@@ -34,16 +35,23 @@ const Layout = () => {
   const { currentUser } = useAuth();
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box sx={{ 
+      display: 'flex', 
+      minHeight: '100vh',
+      bgcolor: 'background.default'
+    }}>
       <CssBaseline />
-      
+
       {/* Ana İçerik */}
-      <Box component="main" sx={{ 
-        flexGrow: 1, 
-        p: 3,
-        marginRight: currentUser ? '280px' : 0, // Navbar genişliği kadar sağ margin
-        transition: 'margin 0.3s ease'
-      }}>
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          width: currentUser ? 'calc(100% - 56px)' : '100%',
+          minHeight: '100vh',
+          position: 'relative'
+        }}
+      >
         <Routes>
           <Route path="/" element={<Home />} />
           <Route
@@ -110,6 +118,14 @@ const Layout = () => {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/videos/:videoId"
+            element={
+              <ProtectedRoute>
+                <VideoDetail />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/explore" element={<Explore />} />
           <Route
             path="/reels"
@@ -122,27 +138,8 @@ const Layout = () => {
         </Routes>
       </Box>
 
-      {/* Sağ Kenar Çubuğu - Navbar */}
-      {currentUser && (
-        <Box
-          component="nav"
-          sx={{
-            width: 280,
-            flexShrink: 0,
-            position: 'fixed',
-            right: 0,
-            top: 0,
-            height: '100vh',
-            borderLeft: '1px solid',
-            borderColor: 'divider',
-            bgcolor: 'background.paper',
-            zIndex: 1200,
-            overflowY: 'auto'
-          }}
-        >
-          <Navbar />
-        </Box>
-      )}
+      {/* Sağ Navbar */}
+      {currentUser && <Navbar />}
     </Box>
   );
 };

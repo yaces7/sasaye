@@ -17,11 +17,11 @@ import {
   CircularProgress
 } from '@mui/material';
 import { ThumbUp, ThumbDown, Share } from '@mui/icons-material';
-import { getVideoById } from '../backend/services/videoService';
+import { getVideoById, Video } from '../backend/services/videoService';
 
 const VideoDetail = () => {
   const { videoId } = useParams();
-  const [video, setVideo] = useState<any>(null);
+  const [video, setVideo] = useState<Video | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [comment, setComment] = useState('');
@@ -73,14 +73,15 @@ const VideoDetail = () => {
             <Box sx={{ position: 'relative', paddingTop: '56.25%', mb: 2 }}>
               <Box
                 component="video"
-                src={video.url}
+                src={video.videoUrl}
                 controls
                 sx={{
                   position: 'absolute',
                   top: 0,
                   left: 0,
                   width: '100%',
-                  height: '100%'
+                  height: '100%',
+                  backgroundColor: 'black'
                 }}
               />
             </Box>
@@ -88,9 +89,11 @@ const VideoDetail = () => {
               {video.title}
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <Avatar src={video.creator.avatar} sx={{ mr: 1 }} />
+              <Avatar src={video.userAvatar} sx={{ mr: 1 }}>
+                {video.username?.[0]}
+              </Avatar>
               <Typography variant="subtitle1">
-                {video.creator.name}
+                {video.username}
               </Typography>
             </Box>
             <Typography variant="body1" paragraph>
@@ -110,7 +113,7 @@ const VideoDetail = () => {
               {video.likes}
             </Button>
             <Button startIcon={<ThumbDown />}>
-              {video.dislikes}
+              0
             </Button>
             <Button startIcon={<Share />}>
               Paylaş
@@ -122,7 +125,7 @@ const VideoDetail = () => {
 
         {/* Comments */}
         <Typography variant="h6" gutterBottom>
-          Yorumlar
+          Yorumlar ({video.comments})
         </Typography>
 
         <Box component="form" onSubmit={handleCommentSubmit} sx={{ mb: 4 }}>
@@ -143,29 +146,6 @@ const VideoDetail = () => {
             Yorum Yap
           </Button>
         </Box>
-
-        <List>
-          {video.comments.map((comment: any) => (
-            <ListItem key={comment.id} alignItems="flex-start">
-              <ListItemAvatar>
-                <Avatar alt={comment.author} src={comment.avatar} />
-              </ListItemAvatar>
-              <ListItemText
-                primary={
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <Typography component="span" fontWeight="bold">
-                      {comment.author}
-                    </Typography>
-                    <Typography component="span" color="text.secondary">
-                      {new Date(comment.createdAt).toLocaleDateString()}
-                    </Typography>
-                  </Box>
-                }
-                secondary={comment.content}
-              />
-            </ListItem>
-          ))}
-        </List>
       </Box>
     </Container>
   );

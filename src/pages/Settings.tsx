@@ -34,6 +34,7 @@ import {
 } from '../backend/services/userService';
 import { useTheme } from '../contexts/ThemeContext';
 import { DarkMode, LightMode } from '@mui/icons-material';
+import { toast } from 'react-hot-toast';
 
 const Settings = () => {
   const { currentUser } = useAuth();
@@ -59,29 +60,30 @@ const Settings = () => {
   // Ayarları yükle
   useEffect(() => {
     const loadSettings = async () => {
-      if (!currentUser) return;
-      
-      try {
-        const userSettings = await getUserSettings(currentUser.id);
-        setSettings(userSettings);
-      } catch (err: any) {
-        setError(err.message);
+      if (currentUser) {
+        try {
+          const userSettings = await getUserSettings(currentUser.uid);
+          setSettings(userSettings);
+        } catch (error) {
+          toast.error('Ayarlar yüklenirken bir hata oluştu');
+        }
       }
     };
-
     loadSettings();
   }, [currentUser]);
 
-  const handleSettingChange = (setting: keyof UserSettings) => 
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const value = event.target.type === 'checkbox' 
-        ? event.target.checked 
-        : event.target.value;
-      
-      setSettings(prev => ({
-        ...prev,
-        [setting]: value
-      }));
+  const handleSettingChange = async (key: string, value: any) => {
+    try {
+      setLoading(true);
+      const updatedSettings = { ...settings, [key]: value };
+      await updateUserSettings(currentUser!.uid, { [key]: value });
+      setSettings(updatedSettings);
+      toast.success('Ayarlar güncellendi');
+    } catch (error) {
+      toast.error('Ayarlar güncellenirken bir hata oluştu');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSaveSettings = async () => {
@@ -89,7 +91,7 @@ const Settings = () => {
     
     setLoading(true);
     try {
-      await updateUserSettings(currentUser.id, settings);
+      await updateUserSettings(currentUser.uid, settings);
       setSuccess('Ayarlar başarıyla güncellendi');
     } catch (err: any) {
       setError(err.message);
@@ -98,36 +100,36 @@ const Settings = () => {
     }
   };
 
-  const handleEmailChange = async () => {
-    if (!newEmail.trim()) return;
-    
-    setLoading(true);
+  const handleEmailUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEmail) return;
+
     try {
+      setLoading(true);
       await updateUserEmail(newEmail);
-      setSuccess('Email değişikliği için doğrulama emaili gönderildi');
+      toast.success('Email güncellendi ve doğrulama emaili gönderildi');
       setNewEmail('');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (error: any) {
+      toast.error(error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePasswordChange = async () => {
-    if (!newPassword || !confirmPassword) return;
-    if (newPassword !== confirmPassword) {
-      setError('Şifreler eşleşmiyor');
+  const handlePasswordUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      toast.error('Şifre en az 6 karakter olmalıdır');
       return;
     }
-    
-    setLoading(true);
+
     try {
+      setLoading(true);
       await updateUserPassword(newPassword);
-      setSuccess('Şifreniz başarıyla güncellendi');
+      toast.success('Şifre güncellendi');
       setNewPassword('');
-      setConfirmPassword('');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (error: any) {
+      toast.error(error.message);
     } finally {
       setLoading(false);
     }
@@ -146,35 +148,35 @@ const Settings = () => {
 
   if (!currentUser) {
     return (
-      <Container maxWidth="md" sx={{ mt: 4 }}>
+      <Box sx={{ 
+        height: '100vh',
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
         <Alert severity="error">
           Bu sayfayı görüntülemek için giriş yapmalısınız.
         </Alert>
-      </Container>
+      </Box>
     );
   }
 
   return (
-    <Box sx={{
-      minHeight: 'calc(100vh - 64px)',
-      width: '100vw',
+    <Box sx={{ 
+      minHeight: '100vh',
+      width: '100%',
       display: 'flex',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       justifyContent: 'center',
-      position: 'fixed',
-      top: 64,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      overflowY: 'auto',
-      backgroundColor: 'white',
+      p: 3,
+      bgcolor: 'background.default'
     }}>
-      <Container maxWidth="md" sx={{ my: { xs: 2, sm: 4 } }}>
+      <Container maxWidth="lg">
         <Paper sx={{ 
           p: { xs: 2, sm: 4 }, 
-          width: '100%',
-          borderRadius: { xs: isMobile ? 0 : 2, sm: 2 },
-          boxShadow: isMobile ? 'none' : theme => `0 8px 24px ${theme.palette.primary.light}25`,
+          borderRadius: 2,
+          boxShadow: theme => `0 8px 24px ${theme.palette.primary.light}25`
         }}>
           <Typography variant="h4" gutterBottom>
             Ayarlar
@@ -197,7 +199,6 @@ const Settings = () => {
               </ListItemSecondaryAction>
             </ListItem>
             <Divider />
-            {/* Diğer ayarlar buraya eklenebilir */}
           </List>
 
           {/* Genel Ayarlar */}
@@ -210,7 +211,7 @@ const Settings = () => {
               control={
                 <Switch
                   checked={settings.emailNotifications}
-                  onChange={handleSettingChange('emailNotifications')}
+                  onChange={(e) => handleSettingChange('emailNotifications', e.target.checked)}
                 />
               }
               label="Email Bildirimleri"
@@ -220,7 +221,7 @@ const Settings = () => {
               control={
                 <Switch
                   checked={settings.privateProfile}
-                  onChange={handleSettingChange('privateProfile')}
+                  onChange={(e) => handleSettingChange('privateProfile', e.target.checked)}
                 />
               }
               label="Gizli Profil"
@@ -231,9 +232,7 @@ const Settings = () => {
               <Select
                 value={settings.theme}
                 label="Tema"
-                onChange={(e) => handleSettingChange('theme')({ 
-                  target: { value: e.target.value } 
-                } as any)}
+                onChange={(e) => handleSettingChange('theme', e.target.value)}
               >
                 <MenuItem value="light">Açık</MenuItem>
                 <MenuItem value="dark">Koyu</MenuItem>
@@ -245,9 +244,7 @@ const Settings = () => {
               <Select
                 value={settings.language}
                 label="Dil"
-                onChange={(e) => handleSettingChange('language')({ 
-                  target: { value: e.target.value } 
-                } as any)}
+                onChange={(e) => handleSettingChange('language', e.target.value)}
               >
                 <MenuItem value="tr">Türkçe</MenuItem>
                 <MenuItem value="en">English</MenuItem>
@@ -272,22 +269,23 @@ const Settings = () => {
               Email Değiştir
             </Typography>
             
-            <TextField
-              fullWidth
-              label="Yeni Email"
-              type="email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              sx={{ mb: 2 }}
-            />
-            
-            <Button
-              variant="contained"
-              onClick={handleEmailChange}
-              disabled={loading || !newEmail}
-            >
-              Email Değiştir
-            </Button>
+            <form onSubmit={handleEmailUpdate} className="space-y-4">
+              <input
+                type="email"
+                placeholder="Yeni Email"
+                className="w-full p-2 border rounded"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                disabled={loading}
+              />
+              <button
+                type="submit"
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+                disabled={loading || !newEmail}
+              >
+                Email Güncelle
+              </button>
+            </form>
           </Box>
 
           <Divider sx={{ my: 4 }} />
@@ -298,32 +296,23 @@ const Settings = () => {
               Şifre Değiştir
             </Typography>
             
-            <TextField
-              fullWidth
-              label="Yeni Şifre"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              sx={{ mb: 2 }}
-            />
-            
-            <TextField
-              fullWidth
-              label="Şifre Tekrar"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              sx={{ mb: 2 }}
-            />
-            
-            <Button
-              variant="contained"
-              onClick={handlePasswordChange}
-              disabled={loading || !newPassword || !confirmPassword}
-              sx={{ mr: 2 }}
-            >
-              Şifre Değiştir
-            </Button>
+            <form onSubmit={handlePasswordUpdate} className="space-y-4">
+              <input
+                type="password"
+                placeholder="Yeni Şifre"
+                className="w-full p-2 border rounded"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                disabled={loading}
+              />
+              <button
+                type="submit"
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+                disabled={loading || !newPassword || newPassword.length < 6}
+              >
+                Şifre Güncelle
+              </button>
+            </form>
 
             <Button
               variant="outlined"

@@ -20,6 +20,9 @@ interface Video {
   createdAt: Date;
   likes: number;
   isReel: boolean;
+  username: string;
+  comments: number;
+  tags: string[];
 }
 
 const Videos = () => {
@@ -43,6 +46,9 @@ const Videos = () => {
       createdAt: new Date(),
       likes: 0,
       isReel: false,
+      username: '',
+      comments: 0,
+      tags: [],
     },
     {
       id: "2",
@@ -60,6 +66,9 @@ const Videos = () => {
       createdAt: new Date(),
       likes: 0,
       isReel: false,
+      username: '',
+      comments: 0,
+      tags: [],
     },
   ]);
 
@@ -80,6 +89,9 @@ const Videos = () => {
       createdAt: new Date(),
       likes: 0,
       isReel: false,
+      username: '',
+      comments: 0,
+      tags: [],
     };
 
     setVideos([newVideo, ...videos]);
@@ -87,13 +99,13 @@ const Videos = () => {
 
   return (
     <Box sx={{
-      minHeight: 'calc(100vh - 64px)',
+      minHeight: '100vh',
       width: '100vw',
       display: 'flex',
       alignItems: 'flex-start',
       justifyContent: 'center',
       position: 'fixed',
-      top: 64,
+      top: 0,
       left: 0,
       right: 0,
       bottom: 0,

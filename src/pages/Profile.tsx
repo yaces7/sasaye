@@ -60,13 +60,13 @@ const Profile = () => {
 
   return (
     <Box sx={{
-      minHeight: 'calc(100vh - 64px)',
+      minHeight: '100vh',
       width: '100vw',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       position: 'fixed',
-      top: 64,
+      top: 0,
       left: 0,
       right: 0,
       bottom: 0,
@@ -98,7 +98,7 @@ const Profile = () => {
             }}
           />
           <Typography variant="h3" gutterBottom>
-            {currentUser.name}
+            {currentUser.username}
           </Typography>
           <Typography variant="h5" color="text.secondary">
             {currentUser.email}

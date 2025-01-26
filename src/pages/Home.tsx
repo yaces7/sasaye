@@ -37,13 +37,13 @@ const Home = () => {
 
   return (
     <Box sx={{
-      minHeight: 'calc(100vh - 64px)',
+      minHeight: '100vh',
       width: '100vw',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       position: 'fixed',
-      top: 64,
+      top: 0,
       left: 0,
       right: 0,
       bottom: 0,
@@ -62,7 +62,12 @@ const Home = () => {
             flexDirection: 'column',
           }),
         }}>
-          <Typography variant="h4" gutterBottom>
+          <Typography 
+            variant="h4" 
+            gutterBottom 
+            align="center"
+            sx={{ mb: 4, pt: 14}}
+          >
             Ana Sayfa
           </Typography>
           {/* Hero Section */}

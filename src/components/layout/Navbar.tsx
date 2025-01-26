@@ -5,15 +5,13 @@ import {
   List,
   ListItem,
   ListItemIcon,
-  ListItemText,
   IconButton,
-  Menu,
-  MenuItem,
   Avatar,
-  Divider,
-  Typography,
+  Tooltip,
   ListItemButton,
-  useTheme
+  Typography,
+  useTheme,
+  keyframes
 } from '@mui/material';
 import {
   Home as HomeIcon,
@@ -22,7 +20,6 @@ import {
   Group as GroupIcon,
   Message as MessageIcon,
   Settings as SettingsIcon,
-  Person as PersonIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
   Logout as LogoutIcon,
@@ -31,12 +28,18 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme as useAppTheme } from '../../contexts/ThemeContext';
 
+// Logo animasyonu
+const glowAnimation = keyframes`
+  0% { text-shadow: 0 0 10px #00f5d4; }
+  50% { text-shadow: 0 0 20px #00f5d4, 0 0 30px #00f5d4; }
+  100% { text-shadow: 0 0 10px #00f5d4; }
+`;
+
 const Navbar = () => {
   const navigate = useNavigate();
   const { currentUser, logout } = useAuth();
   const { mode, toggleTheme } = useAppTheme();
   const theme = useTheme();
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   const handleLogout = async () => {
     try {
@@ -57,103 +60,153 @@ const Navbar = () => {
   ];
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Logo veya Uygulama Adı */}
-      <Box sx={{ p: 2, textAlign: 'center' }}>
-        <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-          Sosyal Medya
-        </Typography>
+    <Box sx={{ 
+      height: '100%', 
+      display: 'flex', 
+      flexDirection: 'column',
+      width: '56px',
+      bgcolor: 'background.paper',
+      borderLeft: '1px solid',
+      borderColor: 'divider',
+      position: 'fixed',
+      right: 0,
+      top: 0,
+      zIndex: 1200,
+      boxShadow: '0 0 10px rgba(0,0,0,0.1)'
+    }}>
+      {/* Logo */}
+      <Box sx={{ 
+        p: 1, 
+        textAlign: 'center',
+        borderBottom: '1px solid',
+        borderColor: 'divider',
+        bgcolor: 'background.paper'
+      }}>
+        <Tooltip title="SaSaYe" placement="left">
+          <Typography
+            component={RouterLink}
+            to="/"
+            sx={{
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: '#00f5d4',
+              textDecoration: 'none',
+              animation: `${glowAnimation} 2s ease-in-out infinite`,
+              display: 'block',
+              cursor: 'pointer',
+              py: 0.5
+            }}
+          >
+            SSY
+          </Typography>
+        </Tooltip>
       </Box>
-
-      <Divider />
 
       {/* Ana Menü */}
       <List sx={{ flexGrow: 1 }}>
         {menuItems.map((item) => (
           <ListItem key={item.text} disablePadding>
-            <ListItemButton
-              component={RouterLink}
-              to={item.path}
-              sx={{
-                borderRadius: 2,
-                m: 1,
-                '&.active': {
-                  bgcolor: 'primary.main',
-                  color: 'primary.contrastText',
-                  '& .MuiListItemIcon-root': {
-                    color: 'inherit',
+            <Tooltip title={item.text} placement="left">
+              <ListItemButton
+                component={RouterLink}
+                to={item.path}
+                sx={{
+                  minHeight: 40,
+                  justifyContent: 'center',
+                  px: 1,
+                  '&.active': {
+                    bgcolor: 'primary.main',
+                    color: 'primary.contrastText',
+                    '& .MuiListItemIcon-root': {
+                      color: 'inherit',
+                    },
                   },
-                },
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItemButton>
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 0, justifyContent: 'center' }}>
+                  {item.icon}
+                </ListItemIcon>
+              </ListItemButton>
+            </Tooltip>
           </ListItem>
         ))}
       </List>
 
-      <Divider />
-
       {/* Alt Menü */}
       <List>
         <ListItem disablePadding>
-          <ListItemButton
-            component={RouterLink}
-            to="/profile"
-            sx={{ borderRadius: 2, m: 1 }}
-          >
-            <ListItemIcon sx={{ minWidth: 40 }}>
-              <Avatar
-                src={currentUser?.avatar}
-                sx={{ width: 32, height: 32 }}
-              >
-                {currentUser?.username?.[0]?.toUpperCase()}
-              </Avatar>
-            </ListItemIcon>
-            <ListItemText 
-              primary={currentUser?.username}
-              secondary={currentUser?.email}
-              secondaryTypographyProps={{ noWrap: true }}
-            />
-          </ListItemButton>
+          <Tooltip title={currentUser?.username || 'Profil'} placement="left">
+            <ListItemButton
+              component={RouterLink}
+              to="/profile"
+              sx={{
+                minHeight: 40,
+                justifyContent: 'center',
+                px: 1,
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 0, justifyContent: 'center' }}>
+                <Avatar
+                  src={currentUser?.avatar}
+                  sx={{ width: 24, height: 24 }}
+                >
+                  {currentUser?.username?.[0]?.toUpperCase()}
+                </Avatar>
+              </ListItemIcon>
+            </ListItemButton>
+          </Tooltip>
         </ListItem>
 
         <ListItem disablePadding>
-          <ListItemButton
-            component={RouterLink}
-            to="/settings"
-            sx={{ borderRadius: 2, m: 1 }}
-          >
-            <ListItemIcon sx={{ minWidth: 40 }}>
-              <SettingsIcon />
-            </ListItemIcon>
-            <ListItemText primary="Ayarlar" />
-          </ListItemButton>
+          <Tooltip title="Ayarlar" placement="left">
+            <ListItemButton
+              component={RouterLink}
+              to="/settings"
+              sx={{
+                minHeight: 40,
+                justifyContent: 'center',
+                px: 1,
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 0, justifyContent: 'center' }}>
+                <SettingsIcon fontSize="small" />
+              </ListItemIcon>
+            </ListItemButton>
+          </Tooltip>
         </ListItem>
 
         <ListItem disablePadding>
-          <ListItemButton
-            onClick={toggleTheme}
-            sx={{ borderRadius: 2, m: 1 }}
-          >
-            <ListItemIcon sx={{ minWidth: 40 }}>
-              {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
-            </ListItemIcon>
-            <ListItemText primary={mode === 'dark' ? 'Açık Tema' : 'Koyu Tema'} />
-          </ListItemButton>
+          <Tooltip title={mode === 'dark' ? 'Açık Tema' : 'Koyu Tema'} placement="left">
+            <ListItemButton
+              onClick={toggleTheme}
+              sx={{
+                minHeight: 40,
+                justifyContent: 'center',
+                px: 1,
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 0, justifyContent: 'center' }}>
+                {mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
+              </ListItemIcon>
+            </ListItemButton>
+          </Tooltip>
         </ListItem>
 
         <ListItem disablePadding>
-          <ListItemButton
-            onClick={handleLogout}
-            sx={{ borderRadius: 2, m: 1 }}
-          >
-            <ListItemIcon sx={{ minWidth: 40 }}>
-              <LogoutIcon />
-            </ListItemIcon>
-            <ListItemText primary="Çıkış Yap" />
-          </ListItemButton>
+          <Tooltip title="Çıkış Yap" placement="left">
+            <ListItemButton
+              onClick={handleLogout}
+              sx={{
+                minHeight: 40,
+                justifyContent: 'center',
+                px: 1,
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 0, justifyContent: 'center' }}>
+                <LogoutIcon fontSize="small" />
+              </ListItemIcon>
+            </ListItemButton>
+          </Tooltip>
         </ListItem>
       </List>
     </Box>
