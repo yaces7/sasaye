@@ -1,35 +1,27 @@
-import React from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
 import {
   AppBar,
-  Toolbar,
-  Typography,
-  Button,
   Box,
+  Toolbar,
   IconButton,
-  Avatar,
+  Typography,
   Menu,
+  Container,
+  Avatar,
+  Button,
   MenuItem,
-  Badge,
+  useTheme
 } from '@mui/material';
-import {
-  Home as HomeIcon,
-  VideoLibrary as VideoIcon,
-  Message as MessageIcon,
-  Group as GroupIcon,
-  Notifications as NotificationIcon,
-  ExploreOutlined as ExploreIcon,
-} from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import { signOut } from '../backend/services/userService';
+import { auth } from '../backend/firebase';
+import { signOut } from 'firebase/auth';
 
 const MainLayout = () => {
   const { currentUser, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
-  const [unreadMessages, setUnreadMessages] = React.useState(0);
-  const [notifications, setNotifications] = React.useState(0);
+  const theme = useTheme();
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -39,87 +31,47 @@ const MainLayout = () => {
     setAnchorEl(null);
   };
 
-  const handleProfileClick = () => {
-    handleClose();
-    navigate('/profile');
-  };
-
   const handleLogout = async () => {
-    handleClose();
     try {
-      await signOut();
+      await signOut(auth);
       navigate('/login');
     } catch (error) {
       console.error('Çıkış yapılırken hata oluştu:', error);
     }
+    handleClose();
   };
-
-  // Public routes - herkes erişebilir
-  const publicRoutes = ['/', '/login', '/register'];
-  
-  // Eğer kullanıcı giriş yapmamışsa ve protected route'a erişmeye çalışıyorsa
-  if (!isAuthenticated && !publicRoutes.includes(location.pathname)) {
-    navigate('/login');
-    return null;
-  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <AppBar position="fixed">
-        <Toolbar>
-          <Typography
-            variant="h6"
-            component="div"
-            sx={{ flexGrow: 0, cursor: 'pointer' }}
-            onClick={() => navigate('/')}
-          >
-            SosyalMedya
-          </Typography>
+      <AppBar 
+        position="fixed" 
+        sx={{
+          background: `linear-gradient(45deg, ${theme.palette.primary.main} 30%, ${theme.palette.primary.light} 90%)`,
+          boxShadow: '0 3px 5px 2px rgba(0, 0, 0, .1)'
+        }}
+      >
+        <Container maxWidth="xl">
+          <Toolbar>
+            <Typography
+              variant="h6"
+              noWrap
+              component="div"
+              sx={{ flexGrow: 1, cursor: 'pointer' }}
+              onClick={() => navigate('/')}
+            >
+              Sosyal Medya
+            </Typography>
 
-          <Box sx={{ flexGrow: 1, display: 'flex', gap: 2, ml: 4 }}>
-            <IconButton color="inherit" onClick={() => navigate('/')}>
-              <HomeIcon />
-            </IconButton>
-
-            {isAuthenticated && (
-              <>
-                <IconButton color="inherit" onClick={() => navigate('/videos')}>
-                  <VideoIcon />
-                </IconButton>
-
-                <IconButton color="inherit" onClick={() => navigate('/messages')}>
-                  <Badge badgeContent={unreadMessages} color="error">
-                    <MessageIcon />
-                  </Badge>
-                </IconButton>
-
-                <IconButton color="inherit" onClick={() => navigate('/groups')}>
-                  <GroupIcon />
-                </IconButton>
-
-                <IconButton color="inherit" onClick={() => navigate('/explore')}>
-                  <ExploreIcon />
-                </IconButton>
-
-                <IconButton color="inherit">
-                  <Badge badgeContent={notifications} color="error">
-                    <NotificationIcon />
-                  </Badge>
-                </IconButton>
-              </>
-            )}
-          </Box>
-
-          <Box>
             {isAuthenticated ? (
-              <>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <IconButton
                   onClick={handleMenu}
                   sx={{
-                    padding: 0,
+                    p: 0,
+                    border: `2px solid ${theme.palette.primary.light}`,
                     '&:hover': {
-                      backgroundColor: 'transparent',
-                    },
+                      border: `2px solid ${theme.palette.primary.main}`
+                    }
                   }}
                 >
                   <Avatar
@@ -130,33 +82,65 @@ const MainLayout = () => {
                 </IconButton>
                 <Menu
                   anchorEl={anchorEl}
+                  anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'right',
+                  }}
+                  keepMounted
+                  transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'right',
+                  }}
                   open={Boolean(anchorEl)}
                   onClose={handleClose}
                 >
-                  <MenuItem onClick={handleProfileClick}>Profilim</MenuItem>
-                  <MenuItem onClick={handleLogout}>Çıkış Yap</MenuItem>
+                  <MenuItem onClick={() => { navigate('/profile'); handleClose(); }}>
+                    Profil
+                  </MenuItem>
+                  <MenuItem onClick={handleLogout}>
+                    Çıkış Yap
+                  </MenuItem>
                 </Menu>
-              </>
+              </Box>
             ) : (
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ display: 'flex', gap: 2 }}>
                 <Button
                   color="inherit"
                   onClick={() => navigate('/login')}
+                  sx={{
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                    }
+                  }}
                 >
                   Giriş Yap
                 </Button>
                 <Button
-                  color="inherit"
+                  variant="contained"
                   onClick={() => navigate('/register')}
+                  sx={{
+                    backgroundColor: theme.palette.primary.light,
+                    '&:hover': {
+                      backgroundColor: theme.palette.primary.dark
+                    }
+                  }}
                 >
                   Kayıt Ol
                 </Button>
               </Box>
             )}
-          </Box>
-        </Toolbar>
+          </Toolbar>
+        </Container>
       </AppBar>
-      <Box component="main" sx={{ flexGrow: 1, mt: '64px' }}>
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          pt: '64px', // AppBar yüksekliği
+          minHeight: 'calc(100vh - 64px)',
+          backgroundColor: theme.palette.background.default
+        }}
+      >
         <Outlet />
       </Box>
     </Box>

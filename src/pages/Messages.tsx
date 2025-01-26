@@ -25,7 +25,8 @@ import {
   sendMessage, 
   subscribeToMessages, 
   Message,
-  getUserChats 
+  getUserChats,
+  getMessages
 } from '../backend/services/messageService';
 
 interface Chat {
@@ -103,14 +104,33 @@ const Messages = () => {
     return () => unsubscribe();
   }, [currentUser, selectedChat]);
 
+  useEffect(() => {
+    if (selectedChat) {
+      const fetchMessages = async () => {
+        try {
+          const chatMessages = await getMessages(selectedChat.userId);
+          setMessages(chatMessages);
+        } catch (error) {
+          console.error('Error fetching messages:', error);
+        }
+      };
+      fetchMessages();
+    }
+  }, [selectedChat]);
+
   const handleSendMessage = async () => {
-    if (!currentUser || !selectedChat || !newMessage.trim()) return;
+    if (!newMessage.trim() || !selectedChat || !currentUser) return;
 
     try {
-      await sendMessage(currentUser.id, selectedChat.userId, newMessage.trim());
+      await sendMessage({
+        chatId: selectedChat.userId,
+        senderId: currentUser.id,
+        content: newMessage,
+        timestamp: new Date()
+      });
       setNewMessage('');
-    } catch (err) {
-      setError('Mesaj gönderilirken bir hata oluştu');
+    } catch (error) {
+      console.error('Error sending message:', error);
     }
   };
 

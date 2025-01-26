@@ -17,6 +17,7 @@ import GroupCard from '../components/GroupCard';
 import VideoCard from '../components/VideoCard';
 import { searchGroups, Group } from '../backend/services/groupService';
 import { searchVideos, Video } from '../backend/services/videoService';
+import { getAllGroups } from '../backend/services/groupService';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -48,12 +49,13 @@ const Explore = () => {
   const { currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [tabValue, setTabValue] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
   // Arama sonuçları
   const [groups, setGroups] = useState<Group[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
+  const [filteredGroups, setFilteredGroups] = useState<Group[]>([]);
 
   // Tab değişikliği
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -76,6 +78,7 @@ const Explore = () => {
         if (tabValue === 0) { // Gruplar
           const results = await searchGroups(searchQuery);
           setGroups(results);
+          setFilteredGroups(results);
         } else { // Videolar
           const results = await searchVideos(searchQuery);
           setVideos(results);
@@ -91,6 +94,31 @@ const Explore = () => {
     return () => clearTimeout(debounceTimeout);
   }, [searchQuery, tabValue]);
 
+  useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        const fetchedGroups = await getAllGroups();
+        setGroups(fetchedGroups);
+        setFilteredGroups(fetchedGroups);
+      } catch (error) {
+        console.error('Error fetching groups:', error);
+      }
+    };
+    fetchGroups();
+  }, []);
+
+  useEffect(() => {
+    const filtered = groups.filter(group =>
+      group.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      group.description.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    setFilteredGroups(filtered);
+  }, [searchQuery, groups]);
+
+  const handleSearch = (value: string) => {
+    setSearchQuery(value);
+  };
+
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       {/* Arama Alanı */}
@@ -102,7 +130,7 @@ const Explore = () => {
           fullWidth
           placeholder="Ara..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => handleSearch(e.target.value)}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -137,13 +165,13 @@ const Explore = () => {
 
       {/* Gruplar Tab Paneli */}
       <TabPanel value={tabValue} index={0}>
-        {!loading && groups.length === 0 && searchQuery && (
+        {!loading && filteredGroups.length === 0 && searchQuery && (
           <Typography color="text.secondary" align="center">
             Grup bulunamadı
           </Typography>
         )}
         <Grid container spacing={3}>
-          {groups.map((group) => (
+          {filteredGroups.map((group) => (
             <Grid item xs={12} sm={6} md={4} key={group.id}>
               <GroupCard group={group} />
             </Grid>

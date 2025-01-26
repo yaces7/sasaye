@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Box,
@@ -12,43 +12,52 @@ import {
   ListItem,
   ListItemAvatar,
   ListItemText,
+  Grid,
+  Paper,
+  CircularProgress
 } from '@mui/material';
 import { ThumbUp, ThumbDown, Share } from '@mui/icons-material';
+import { getVideoById } from '../backend/services/videoService';
 
 const VideoDetail = () => {
-  const { id } = useParams();
+  const { videoId } = useParams();
+  const [video, setVideo] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [comment, setComment] = useState('');
 
-  // Örnek video verisi
-  const video = {
-    id: 1,
-    title: 'React ile Modern Web Geliştirme',
-    author: 'Ahmet Yılmaz',
-    views: 1200,
-    likes: 156,
-    dislikes: 4,
-    description: 'Bu videoda React ile modern web uygulamaları geliştirmeyi öğreneceksiniz.',
-    videoUrl: 'https://www.example.com/video.mp4', // Örnek URL
-    publishDate: '2024-01-15',
-  };
+  useEffect(() => {
+    const fetchVideo = async () => {
+      if (!videoId) return;
+      
+      try {
+        const videoData = await getVideoById(videoId);
+        setVideo(videoData);
+      } catch (error) {
+        setError('Video yüklenirken bir hata oluştu');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // Örnek yorumlar
-  const comments = [
-    {
-      id: 1,
-      author: 'Mehmet Kaya',
-      avatar: 'https://source.unsplash.com/random/40x40?face-1',
-      content: 'Harika bir video olmuş, teşekkürler!',
-      date: '3 gün önce',
-    },
-    {
-      id: 2,
-      author: 'Ayşe Demir',
-      avatar: 'https://source.unsplash.com/random/40x40?face-2',
-      content: 'Çok faydalı bilgiler var, devamını bekliyoruz.',
-      date: '1 hafta önce',
-    },
-  ];
+    fetchVideo();
+  }, [videoId]);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error || !video) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Typography color="error">{error || 'Video bulunamadı'}</Typography>
+      </Box>
+    );
+  }
 
   const handleCommentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,44 +66,45 @@ const VideoDetail = () => {
   };
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ mt: 4 }}>
-        {/* Video Player */}
-        <Box
-          sx={{
-            width: '100%',
-            height: 0,
-            paddingBottom: '56.25%', // 16:9 aspect ratio
-            position: 'relative',
-            bgcolor: 'black',
-            mb: 3,
-          }}
-        >
-          <video
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-            }}
-            controls
-            src={video.videoUrl}
-          />
-        </Box>
-
-        {/* Video Info */}
-        <Typography variant="h4" gutterBottom>
-          {video.title}
-        </Typography>
-
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              {video.views} görüntülenme • {video.publishDate}
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Paper sx={{ p: 2 }}>
+            <Box sx={{ position: 'relative', paddingTop: '56.25%', mb: 2 }}>
+              <Box
+                component="video"
+                src={video.url}
+                controls
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%'
+                }}
+              />
+            </Box>
+            <Typography variant="h4" gutterBottom>
+              {video.title}
             </Typography>
-          </Box>
-          
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <Avatar src={video.creator.avatar} sx={{ mr: 1 }} />
+              <Typography variant="subtitle1">
+                {video.creator.name}
+              </Typography>
+            </Box>
+            <Typography variant="body1" paragraph>
+              {video.description}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {video.views} görüntülenme • {new Date(video.createdAt).toLocaleDateString()}
+            </Typography>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      <Box sx={{ mt: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button startIcon={<ThumbUp />}>
               {video.likes}
@@ -107,32 +117,6 @@ const VideoDetail = () => {
             </Button>
           </Box>
         </Box>
-
-        <Divider sx={{ my: 3 }} />
-
-        {/* Author Info */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-          <Avatar
-            src="https://source.unsplash.com/random/40x40?face"
-            sx={{ width: 50, height: 50 }}
-          />
-          <Box>
-            <Typography variant="subtitle1" fontWeight="bold">
-              {video.author}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              1.2K abone
-            </Typography>
-          </Box>
-          <Button variant="contained" sx={{ ml: 'auto' }}>
-            Abone Ol
-          </Button>
-        </Box>
-
-        {/* Description */}
-        <Typography variant="body1" paragraph>
-          {video.description}
-        </Typography>
 
         <Divider sx={{ my: 3 }} />
 
@@ -161,7 +145,7 @@ const VideoDetail = () => {
         </Box>
 
         <List>
-          {comments.map((comment) => (
+          {video.comments.map((comment: any) => (
             <ListItem key={comment.id} alignItems="flex-start">
               <ListItemAvatar>
                 <Avatar alt={comment.author} src={comment.avatar} />
@@ -173,7 +157,7 @@ const VideoDetail = () => {
                       {comment.author}
                     </Typography>
                     <Typography component="span" color="text.secondary">
-                      {comment.date}
+                      {new Date(comment.createdAt).toLocaleDateString()}
                     </Typography>
                   </Box>
                 }
