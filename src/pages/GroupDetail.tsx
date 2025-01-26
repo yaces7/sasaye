@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -10,24 +10,31 @@ import {
   CircularProgress
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
-import { getGroupById, joinGroup, leaveGroup } from '../backend/services/groupService';
+import { getGroupById, joinGroup, leaveGroup, Group } from '../backend/services/groupService';
 
 const GroupDetail = () => {
-  const { groupId } = useParams();
+  const params = useParams();
+  const groupId = params.groupId ?? '';
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const [group, setGroup] = useState<any>(null);
+  const [group, setGroup] = useState<Group | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isMember, setIsMember] = useState(false);
 
   useEffect(() => {
     const fetchGroup = async () => {
-      if (!groupId) return;
+      if (!groupId) {
+        navigate('/groups');
+        return;
+      }
       
       try {
         const groupData = await getGroupById(groupId);
-        setGroup(groupData);
-        setIsMember(groupData.members.includes(currentUser?.id));
+        if (groupData) {
+          setGroup(groupData);
+          setIsMember(groupData.members.includes(currentUser?.id ?? ''));
+        }
       } catch (error) {
         setError('Grup bilgileri yüklenirken bir hata oluştu');
       } finally {
@@ -36,7 +43,7 @@ const GroupDetail = () => {
     };
 
     fetchGroup();
-  }, [groupId, currentUser]);
+  }, [groupId, currentUser, navigate]);
 
   const handleJoinGroup = async () => {
     if (!currentUser || !groupId) return;
@@ -113,7 +120,7 @@ const GroupDetail = () => {
                 {isMember ? 'Gruptan Ayrıl' : 'Gruba Katıl'}
               </Button>
             )}
-          </Grid>
+          </Box>
         </Grid>
       </Grid>
     </Box>
