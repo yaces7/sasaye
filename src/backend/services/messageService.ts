@@ -146,12 +146,15 @@ export const subscribeToMessages = (chatId: string, callback: (messages: Message
   const q = query(
     collection(db, 'messages'),
     where('chatId', '==', chatId),
-    orderBy('timestamp', 'asc')
+    orderBy('timestamp', 'desc')
   );
 
   return onSnapshot(q, (snapshot) => {
-    const messages = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Message);
-    callback(messages);
+    const messages = snapshot.docs.map(doc => ({
+      ...doc.data(),
+      id: doc.id
+    }) as Message);
+    callback(messages.reverse()); // En eski mesajlar önce gelsin
   }, (error) => {
     console.error('Mesaj dinleme hatası:', error);
   });
@@ -161,7 +164,8 @@ export const subscribeToMessages = (chatId: string, callback: (messages: Message
 export const subscribeToChats = (userId: string, callback: (chats: Chat[]) => void) => {
   const q = query(
     collection(db, 'chats'),
-    where('participants', 'array-contains', userId)
+    where('participants', 'array-contains', userId),
+    orderBy('lastMessageTime', 'desc')
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -170,6 +174,8 @@ export const subscribeToChats = (userId: string, callback: (chats: Chat[]) => vo
       id: doc.id
     }) as Chat);
     callback(chats);
+  }, (error) => {
+    console.error('Sohbet dinleme hatası:', error);
   });
 };
 

@@ -38,7 +38,8 @@ import {
   Message,
   Chat,
   getUserByName,
-  getChatById
+  getChatById,
+  getChatMessages
 } from '../backend/services/messageService';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -136,32 +137,46 @@ const Messages = () => {
   // Sohbetleri dinle
   useEffect(() => {
     if (!currentUser) return;
+    let unsubscribeChats: () => void;
+    let unsubscribeMessages: () => void;
 
-    const unsubscribe = subscribeToChats(currentUser.uid, (updatedChats) => {
-      setChats(updatedChats.sort((a, b) => {
-        return (b.lastMessageTime?.toMillis() || 0) - (a.lastMessageTime?.toMillis() || 0);
-      }));
+    // Sohbetleri dinle
+    unsubscribeChats = subscribeToChats(currentUser.uid, (updatedChats) => {
+      setChats(updatedChats);
+      
+      // Eğer seçili sohbet yoksa ve sohbetler varsa ilk sohbeti seç
+      if (!selectedChat && updatedChats.length > 0) {
+        const firstChat = updatedChats[0];
+        setSelectedChat(firstChat);
+        
+        // İlk sohbetin mesajlarını dinle
+        unsubscribeMessages = subscribeToMessages(firstChat.id, (newMessages) => {
+          setMessages(newMessages);
+          scrollToBottom();
+        });
+      }
     });
 
-    return () => unsubscribe();
+    return () => {
+      if (unsubscribeChats) unsubscribeChats();
+      if (unsubscribeMessages) unsubscribeMessages();
+    };
   }, [currentUser]);
 
-  // Mesajları dinle
+  // Seçili sohbetin mesajlarını dinle
   useEffect(() => {
     if (!selectedChat || !currentUser) return;
 
     // Mesajları okundu olarak işaretle
     markMessagesAsRead(selectedChat.id, currentUser.uid);
 
-    // Gerçek zamanlı mesaj dinleme
+    // Mesajları dinle
     const unsubscribe = subscribeToMessages(selectedChat.id, (newMessages) => {
       setMessages(newMessages);
       scrollToBottom();
     });
 
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [selectedChat, currentUser]);
 
   // Otomatik kaydırma
@@ -182,6 +197,10 @@ const Messages = () => {
       // Mesajı gönder
       await sendMessage(selectedChat.id, currentUser.uid, receiverId, messageText.trim());
       setMessageText('');
+      
+      // Mesajları yeniden yükle
+      const updatedMessages = await getChatMessages(selectedChat.id);
+      setMessages(updatedMessages);
       scrollToBottom();
     } catch (error) {
       console.error('Mesaj gönderme hatası:', error);
