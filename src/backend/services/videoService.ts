@@ -1,6 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { db } from '../firebase';
-import { collection, addDoc, getDocs, query, where, orderBy, Timestamp, limit, startAt, endAt, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, orderBy, Timestamp, limit, startAt, endAt, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 // Cloudinary yapılandırması
@@ -124,7 +124,7 @@ export const getVideoById = async (videoId: string): Promise<Video | null> => {
     }
 
     // Görüntülenme sayısını artır
-    const videoData = videoDoc.data() as Video;
+    const videoData = videoDoc.data() as Omit<Video, 'id'>;
     const newViews = (videoData.views || 0) + 1;
     
     await updateDoc(videoRef, {
