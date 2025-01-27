@@ -1,318 +1,473 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  IconButton,
+  Container,
   Typography,
-  Avatar,
-  Stack,
+  IconButton,
+  Paper,
+  CircularProgress,
+  useTheme,
+  useMediaQuery,
+  Menu,
+  MenuItem,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   Button,
   TextField,
-  Alert,
-  CircularProgress,
+  Fab,
+  LinearProgress
 } from '@mui/material';
 import {
   Favorite as FavoriteIcon,
+  ThumbDown as ThumbDownIcon,
   Comment as CommentIcon,
   Share as ShareIcon,
+  FavoriteBorder as FavoriteBorderIcon,
+  ThumbDownOutlined as ThumbDownOutlinedIcon,
+  MoreVert as MoreVertIcon,
   Add as AddIcon,
-  MusicNote as MusicNoteIcon,
+  CloudUpload as CloudUploadIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import { db } from '../backend/firebase';
-import {
-  collection,
-  addDoc,
-  query,
-  orderBy,
-  getDocs,
-  serverTimestamp,
-  updateDoc,
-  arrayUnion,
-  doc,
-} from 'firebase/firestore';
-import { uploadVideo } from '../backend/services/uploadService';
-
-interface Reel {
-  id: string;
-  userId: string;
-  username: string;
-  userAvatar: string;
-  videoUrl: string;
-  description: string;
-  music: string;
-  likes: string[];
-  comments: number;
-  createdAt: any;
-}
+import { getAllVideos, Video, uploadVideo } from '../backend/services/videoService';
+import toast from 'react-hot-toast';
 
 const Reels = () => {
   const { currentUser } = useAuth();
-  const [reels, setReels] = useState<Reel[]>([]);
-  const [currentReelIndex, setCurrentReelIndex] = useState(0);
-  const [open, setOpen] = useState(false);
-  const [newReel, setNewReel] = useState({
-    videoFile: null as File | null,
-    description: '',
-    music: '',
-  });
-  const [uploadProgress, setUploadProgress] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const [liked, setLiked] = useState<{ [key: string]: boolean }>({});
+  const [disliked, setDisliked] = useState<{ [key: string]: boolean }>({});
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [description, setDescription] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  // Reels'leri getir
-  const fetchReels = async () => {
-    try {
-      const reelsRef = collection(db, 'reels');
-      const q = query(reelsRef, orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
-      
-      const fetchedReels = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Reel[];
+  useEffect(() => {
+    const loadVideos = async () => {
+      try {
+        setLoading(true);
+        const fetchedVideos = await getAllVideos();
+        const reelsVideos = fetchedVideos.filter(video => video.isReel);
+        setVideos(reelsVideos);
+      } catch (error) {
+        console.error('Reels yüklenirken hata:', error);
+        toast.error('Videolar yüklenirken bir hata oluştu');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      setReels(fetchedReels);
-    } catch (error) {
-      console.error('Reels yüklenirken hata:', error);
+    loadVideos();
+  }, []);
+
+  const handleLike = (videoId: string) => {
+    if (disliked[videoId]) {
+      setDisliked(prev => ({ ...prev, [videoId]: false }));
+    }
+    setLiked(prev => ({
+      ...prev,
+      [videoId]: !prev[videoId]
+    }));
+    toast.success(liked[videoId] ? 'Beğeni kaldırıldı' : 'Video beğenildi');
+  };
+
+  const handleDislike = (videoId: string) => {
+    if (liked[videoId]) {
+      setLiked(prev => ({ ...prev, [videoId]: false }));
+    }
+    setDisliked(prev => ({
+      ...prev,
+      [videoId]: !prev[videoId]
+    }));
+    toast.success(disliked[videoId] ? 'Beğenmeme kaldırıldı' : 'Video beğenilmedi');
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: 'Video Paylaş',
+        url: window.location.href
+      });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      toast.success('Link kopyalandı!');
     }
   };
 
-  useEffect(() => {
-    fetchReels();
-  }, []);
+  const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
 
-  // Yeni reel oluştur
-  const handleCreateReel = async () => {
-    if (!newReel.videoFile) {
-      setUploadError('Lütfen bir video seçin');
-      return;
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleComment = () => {
+    setCommentDialogOpen(true);
+  };
+
+  const handleCommentSubmit = () => {
+    if (commentText.trim()) {
+      toast.success('Yorum eklendi');
+      setCommentText('');
     }
-
-    try {
-      setUploadProgress(true);
-      setUploadError(null);
-
-      const uploadResult = await uploadVideo(newReel.videoFile);
-
-      await addDoc(collection(db, 'reels'), {
-        userId: currentUser?.uid,
-        username: currentUser?.username,
-        userAvatar: currentUser?.avatar,
-        videoUrl: uploadResult.url,
-        description: newReel.description,
-        music: newReel.music,
-        likes: [],
-        comments: 0,
-        createdAt: serverTimestamp(),
-      });
-
-      setOpen(false);
-      setNewReel({ videoFile: null, description: '', music: '' });
-      fetchReels();
-    } catch (error: any) {
-      setUploadError(error.message);
-      console.error('Reel oluşturulurken hata:', error);
-    } finally {
-      setUploadProgress(false);
-    }
+    setCommentDialogOpen(false);
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setNewReel({ ...newReel, videoFile: file });
+      if (file.type.startsWith('video/')) {
+        setSelectedFile(file);
+      } else {
+        toast.error('Lütfen geçerli bir video dosyası seçin');
+      }
     }
   };
 
-  // Reel'i beğen
-  const handleLike = async (reelId: string) => {
-    if (!currentUser) return;
+  const handleUpload = async () => {
+    if (!selectedFile || !description.trim()) {
+      toast.error('Lütfen bir video ve açıklama ekleyin');
+      return;
+    }
 
     try {
-      const reelRef = doc(db, 'reels', reelId);
-      await updateDoc(reelRef, {
-        likes: arrayUnion(currentUser.uid)
-      });
-      fetchReels();
+      setUploading(true);
+      // Simüle edilmiş yükleme ilerlemesi
+      const interval = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(interval);
+            return prev;
+          }
+          return prev + 10;
+        });
+      }, 500);
+
+      await uploadVideo(selectedFile, description);
+
+      clearInterval(interval);
+      setUploadProgress(100);
+      toast.success('Video başarıyla yüklendi!');
+      
+      // Videoları yeniden yükle
+      const fetchedVideos = await getAllVideos();
+      const reelsVideos = fetchedVideos.filter(video => video.isReel);
+      setVideos(reelsVideos);
+      
+      setUploadDialogOpen(false);
+      setSelectedFile(null);
+      setDescription('');
     } catch (error) {
-      console.error('Beğeni eklenirken hata:', error);
+      console.error('Video yüklenirken hata:', error);
+      toast.error('Video yüklenirken bir hata oluştu');
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
     }
   };
 
-  // Sonraki/önceki reel'e geç
-  const handleScroll = (e: React.WheelEvent) => {
-    if (e.deltaY > 0 && currentReelIndex < reels.length - 1) {
-      setCurrentReelIndex(prev => prev + 1);
-    } else if (e.deltaY < 0 && currentReelIndex > 0) {
-      setCurrentReelIndex(prev => prev - 1);
-    }
-  };
+  if (loading) {
+    return (
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        minHeight: '100vh'
+      }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
-  const currentReel = reels[currentReelIndex];
+  if (videos.length === 0) {
+    return (
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        minHeight: '100vh'
+      }}>
+        <Typography variant="h6">Henüz reels videosu yok</Typography>
+      </Box>
+    );
+  }
 
   return (
-    <Box
-      sx={{
-        height: 'calc(100vh - 64px)',
-        width: '100%',
-        bgcolor: 'black',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-      onWheel={handleScroll}
-    >
-      {/* Reel Oluşturma Butonu */}
-      <IconButton
+    <Box sx={{
+      minHeight: '100vh',
+      width: '100vw',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      bgcolor: theme.palette.mode === 'dark' ? 'background.default' : '#f5f5f5',
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      overflowY: 'auto'
+    }}>
+      {/* Oluştur Butonu */}
+      <Fab
+        color="primary"
         sx={{
-          position: 'absolute',
-          top: 20,
-          right: 20,
-          zIndex: 2,
-          bgcolor: 'primary.main',
-          '&:hover': { bgcolor: 'primary.dark' },
+          position: 'fixed',
+          top: 16,
+          right: 16,
+          zIndex: 1000
         }}
-        onClick={() => setOpen(true)}
+        onClick={() => setUploadDialogOpen(true)}
       >
         <AddIcon />
-      </IconButton>
+      </Fab>
 
-      {currentReel && (
-        <>
-          {/* Video */}
-          <video
-            src={currentReel.videoUrl}
-            autoPlay
-            loop
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-            }}
-          />
-
-          {/* Sağ Kenar Çubuğu */}
-          <Stack
-            spacing={2}
-            sx={{
-              position: 'absolute',
-              right: 20,
-              bottom: 100,
-              alignItems: 'center',
-            }}
-          >
-            <IconButton onClick={() => handleLike(currentReel.id)}>
-              <FavoriteIcon
-                sx={{
-                  color: currentReel.likes.includes(currentUser?.uid || '')
-                    ? 'error.main'
-                    : 'white',
-                  fontSize: 30,
+      <Container maxWidth="sm" sx={{ height: '100vh', py: 2 }}>
+        <Paper
+          elevation={3}
+          sx={{
+            width: isMobile ? '100%' : '380px',
+            height: '85vh',
+            margin: '0 auto',
+            position: 'relative',
+            overflow: 'hidden',
+            bgcolor: 'black',
+            borderRadius: '16px',
+            boxShadow: theme => `0 8px 24px ${theme.palette.primary.light}25`
+          }}
+        >
+          {videos.map((video, index) => (
+            <Box
+              key={video.id}
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                display: index === currentVideoIndex ? 'block' : 'none'
+              }}
+            >
+              <video
+                src={video.videoUrl}
+                autoPlay
+                loop
+                playsInline
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover'
                 }}
               />
-              <Typography color="white" variant="caption" sx={{ ml: 1 }}>
-                {currentReel.likes.length}
-              </Typography>
-            </IconButton>
-            <IconButton>
-              <CommentIcon sx={{ color: 'white', fontSize: 30 }} />
-              <Typography color="white" variant="caption" sx={{ ml: 1 }}>
-                {currentReel.comments}
-              </Typography>
-            </IconButton>
-            <IconButton>
-              <ShareIcon sx={{ color: 'white', fontSize: 30 }} />
-            </IconButton>
-          </Stack>
+              
+              {/* Video Bilgileri */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  p: 2,
+                  background: 'linear-gradient(transparent, rgba(0,0,0,0.8))'
+                }}
+              >
+                <Typography variant="subtitle1" color="white">
+                  {video.userName}
+                </Typography>
+                <Typography variant="body2" color="white" sx={{ opacity: 0.8 }}>
+                  {video.description}
+                </Typography>
+              </Box>
 
-          {/* Alt Bilgi */}
-          <Box
-            sx={{
-              position: 'absolute',
-              bottom: 20,
-              left: 20,
-              right: 80,
-              color: 'white',
-            }}
-          >
-            <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 1 }}>
-              <Avatar src={currentReel.userAvatar}>
-                {currentReel.username[0]}
-              </Avatar>
-              <Typography variant="subtitle1">{currentReel.username}</Typography>
-            </Stack>
-            <Typography variant="body1" sx={{ mb: 1 }}>
-              {currentReel.description}
-            </Typography>
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <MusicNoteIcon />
-              <Typography variant="body2">{currentReel.music}</Typography>
-            </Stack>
-          </Box>
-        </>
-      )}
+              {/* Etkileşim Butonları */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  right: 16,
+                  bottom: 100,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                  alignItems: 'center'
+                }}
+              >
+                <Box sx={{ textAlign: 'center' }}>
+                  <IconButton
+                    onClick={() => handleLike(video.id)}
+                    sx={{ color: 'white' }}
+                  >
+                    {liked[video.id] ? (
+                      <FavoriteIcon sx={{ color: 'red', fontSize: 30 }} />
+                    ) : (
+                      <FavoriteBorderIcon sx={{ fontSize: 30 }} />
+                    )}
+                  </IconButton>
+                  <Typography variant="caption" sx={{ color: 'white', display: 'block' }}>
+                    {video.likes || 0}
+                  </Typography>
+                </Box>
 
-      {/* Reel Oluşturma Dialog */}
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Yeni Reel Oluştur</DialogTitle>
+                <Box sx={{ textAlign: 'center' }}>
+                  <IconButton
+                    onClick={() => handleDislike(video.id)}
+                    sx={{ color: 'white' }}
+                  >
+                    {disliked[video.id] ? (
+                      <ThumbDownIcon sx={{ fontSize: 30 }} />
+                    ) : (
+                      <ThumbDownOutlinedIcon sx={{ fontSize: 30 }} />
+                    )}
+                  </IconButton>
+                  <Typography variant="caption" sx={{ color: 'white', display: 'block' }}>
+                    Beğenme
+                  </Typography>
+                </Box>
+
+                <Box sx={{ textAlign: 'center' }}>
+                  <IconButton onClick={handleComment} sx={{ color: 'white' }}>
+                    <CommentIcon sx={{ fontSize: 30 }} />
+                  </IconButton>
+                  <Typography variant="caption" sx={{ color: 'white', display: 'block' }}>
+                    {video.comments || 0}
+                  </Typography>
+                </Box>
+
+                <Box sx={{ textAlign: 'center' }}>
+                  <IconButton onClick={handleShare} sx={{ color: 'white' }}>
+                    <ShareIcon sx={{ fontSize: 30 }} />
+                  </IconButton>
+                  <Typography variant="caption" sx={{ color: 'white', display: 'block' }}>
+                    Paylaş
+                  </Typography>
+                </Box>
+
+                <Box sx={{ textAlign: 'center' }}>
+                  <IconButton onClick={handleMenuClick} sx={{ color: 'white' }}>
+                    <MoreVertIcon sx={{ fontSize: 30 }} />
+                  </IconButton>
+                  <Typography variant="caption" sx={{ color: 'white', display: 'block' }}>
+                    Daha Fazla
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          ))}
+        </Paper>
+      </Container>
+
+      {/* Menü */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleMenuClose}
+      >
+        <MenuItem onClick={handleMenuClose}>Videoyu Bildir</MenuItem>
+        <MenuItem onClick={handleMenuClose}>Videoyu İndir</MenuItem>
+        <MenuItem onClick={handleMenuClose}>İlgimi Çekmiyor</MenuItem>
+      </Menu>
+
+      {/* Yorum Dialog */}
+      <Dialog
+        open={commentDialogOpen}
+        onClose={() => setCommentDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Yorum Yap</DialogTitle>
         <DialogContent>
-          <Box sx={{ mb: 2, mt: 2 }}>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Yorumunuz"
+            fullWidth
+            multiline
+            rows={4}
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCommentDialogOpen(false)}>İptal</Button>
+          <Button onClick={handleCommentSubmit} variant="contained">
+            Gönder
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Video Yükleme Dialog */}
+      <Dialog
+        open={uploadDialogOpen}
+        onClose={() => !uploading && setUploadDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Yeni Reels Oluştur</DialogTitle>
+        <DialogContent>
+          <Box sx={{ my: 2 }}>
             <input
               accept="video/*"
               style={{ display: 'none' }}
-              id="reel-video-upload"
+              id="video-upload"
               type="file"
               onChange={handleFileSelect}
+              disabled={uploading}
             />
-            <label htmlFor="reel-video-upload">
+            <label htmlFor="video-upload">
               <Button
                 variant="outlined"
                 component="span"
+                startIcon={<CloudUploadIcon />}
+                disabled={uploading}
                 fullWidth
-                startIcon={<AddIcon />}
               >
-                Video Seç
+                {selectedFile ? selectedFile.name : 'Video Seç'}
               </Button>
             </label>
-            {newReel.videoFile && (
-              <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-                Seçilen video: {newReel.videoFile.name}
-              </Typography>
-            )}
           </Box>
+          
           <TextField
+            margin="dense"
+            label="Açıklama"
             fullWidth
             multiline
             rows={3}
-            label="Açıklama"
-            value={newReel.description}
-            onChange={(e) => setNewReel({ ...newReel, description: e.target.value })}
-            sx={{ mb: 2 }}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={uploading}
           />
-          <TextField
-            fullWidth
-            label="Müzik"
-            value={newReel.music}
-            onChange={(e) => setNewReel({ ...newReel, music: e.target.value })}
-          />
-          {uploadError && (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {uploadError}
-            </Alert>
+
+          {uploading && (
+            <Box sx={{ mt: 2 }}>
+              <LinearProgress variant="determinate" value={uploadProgress} />
+              <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 1 }}>
+                %{Math.round(uploadProgress)}
+              </Typography>
+            </Box>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)} disabled={uploadProgress}>
+          <Button 
+            onClick={() => setUploadDialogOpen(false)} 
+            disabled={uploading}
+          >
             İptal
           </Button>
           <Button 
-            onClick={handleCreateReel} 
+            onClick={handleUpload} 
             variant="contained"
-            disabled={uploadProgress}
+            disabled={!selectedFile || !description.trim() || uploading}
           >
-            {uploadProgress ? <CircularProgress size={24} /> : 'Paylaş'}
+            {uploading ? 'Yükleniyor...' : 'Yükle'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -320,4 +475,4 @@ const Reels = () => {
   );
 };
 
-export default Reels; 
+export default Reels;

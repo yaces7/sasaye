@@ -21,7 +21,9 @@ import {
   DialogActions,
   Button,
   Fab,
-  Tooltip
+  Tooltip,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Send as SendIcon,
@@ -124,7 +126,7 @@ const Messages = () => {
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [messageText, setMessageText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewChatDialogOpen, setIsNewChatDialogOpen] = useState(false);
@@ -133,6 +135,8 @@ const Messages = () => {
   const [searchError, setSearchError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [sending, setSending] = useState(false);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Sohbetleri dinle
   useEffect(() => {
@@ -262,6 +266,22 @@ const Messages = () => {
     }
   };
 
+  if (!currentUser) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Typography>Lütfen giriş yapın</Typography>
+      </Box>
+    );
+  }
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <Box
       sx={{
@@ -279,14 +299,15 @@ const Messages = () => {
         overflowY: 'auto'
       }}
     >
-      <Container maxWidth="lg" sx={{ my: 4 }}>
+      <Container maxWidth="lg" sx={{ my: { xs: 2, sm: 4 } }}>
         <Paper
           elevation={3}
           sx={{
             display: 'flex',
             height: '80vh',
-            borderRadius: 2,
-            overflow: 'hidden'
+            borderRadius: { xs: isMobile ? 0 : 2, sm: 2 },
+            overflow: 'hidden',
+            boxShadow: theme => `0 8px 24px ${theme.palette.primary.light}25`
           }}
         >
           {/* Sol Panel - Sohbet Listesi */}
@@ -295,8 +316,7 @@ const Messages = () => {
               width: 320,
               borderRight: 1,
               borderColor: 'divider',
-              display: 'flex',
-              flexDirection: 'column'
+              display: { xs: selectedChat ? 'none' : 'block', sm: 'block' }
             }}
           >
             <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
