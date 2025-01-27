@@ -85,7 +85,10 @@ interface Post {
   tags: string[];
   likes: string[];
   comments: number;
-  createdAt: any;
+  createdAt: {
+    seconds: number;
+    nanoseconds: number;
+  };
 }
 
 const Explore = () => {
@@ -106,19 +109,18 @@ const Explore = () => {
     imageFile: null as File | null,
     tags: '',
   });
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [uploadProgress, setUploadProgress] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Tab değişikliği
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
   // Arama işlemi
   useEffect(() => {
     const searchContent = async () => {
-      if (!searchQuery.trim()) {
+      if (!searchQuery.trim() || !currentUser) {
         setGroups([]);
         setVideos([]);
         return;
@@ -145,13 +147,19 @@ const Explore = () => {
 
     const debounceTimeout = setTimeout(searchContent, 500);
     return () => clearTimeout(debounceTimeout);
-  }, [searchQuery, tabValue]);
+  }, [searchQuery, tabValue, currentUser]);
 
   useEffect(() => {
     const fetchInitialData = async () => {
+      if (!currentUser) {
+        setGroups([]);
+        setVideos([]);
+        return;
+      }
+
       try {
         if (tabValue === 0) {
-          const fetchedGroups = await getUserGroups(currentUser?.id || '');
+          const fetchedGroups = await getUserGroups(currentUser.id);
           setGroups(fetchedGroups);
           setFilteredGroups(fetchedGroups);
         } else {
@@ -166,9 +174,11 @@ const Explore = () => {
   }, [tabValue, currentUser]);
 
   useEffect(() => {
+    if (!groups.length) return;
+    
     const filtered = groups.filter(group =>
       group.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      group.description.toLowerCase().includes(searchQuery.toLowerCase())
+      (group.description?.toLowerCase() || '').includes(searchQuery.toLowerCase())
     );
     setFilteredGroups(filtered);
   }, [searchQuery, groups]);
@@ -190,10 +200,10 @@ const Explore = () => {
       })) as Post[];
 
       // Kullanıcının ilgi alanlarına göre sırala
-      if (currentUser?.interests) {
+      if (currentUser?.interests && currentUser.interests.length > 0) {
         fetchedPosts.sort((a, b) => {
-          const aMatchCount = a.tags.filter(tag => currentUser.interests.includes(tag)).length;
-          const bMatchCount = b.tags.filter(tag => currentUser.interests.includes(tag)).length;
+          const aMatchCount = a.tags.filter(tag => currentUser.interests!.includes(tag)).length;
+          const bMatchCount = b.tags.filter(tag => currentUser.interests!.includes(tag)).length;
           return bMatchCount - aMatchCount;
         });
       }
@@ -210,6 +220,11 @@ const Explore = () => {
 
   // Yeni gönderi oluştur
   const handleCreatePost = async () => {
+    if (!currentUser) {
+      setUploadError('Oturum açmanız gerekiyor');
+      return;
+    }
+
     try {
       setUploadProgress(true);
       setUploadError(null);
@@ -220,19 +235,21 @@ const Explore = () => {
         imageUrl = uploadResult.url;
       }
 
-      const tags = newPost.tags.split(',').map(tag => tag.trim().toLowerCase());
+      const tags = newPost.tags.split(',').map(tag => tag.trim().toLowerCase()).filter(Boolean);
       
-      await addDoc(collection(db, 'posts'), {
-        userId: currentUser?.uid,
-        username: currentUser?.username,
-        userAvatar: currentUser?.avatar,
+      const postData = {
+        userId: currentUser.uid,
+        username: currentUser.username || '',
+        userAvatar: currentUser.avatar || '',
         content: newPost.content,
         imageUrl,
         tags,
-        likes: [],
+        likes: [] as string[],
         comments: 0,
-        createdAt: serverTimestamp(),
-      });
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'posts'), postData);
 
       setOpen(false);
       setNewPost({ content: '', imageFile: null, tags: '' });
@@ -328,9 +345,9 @@ const Explore = () => {
                   description: group.description,
                   memberCount: group.members?.length || 0,
                   image: group.image || '/default-group-image.png',
-                  isJoined: group.members?.includes(currentUser?.id || ''),
-                  isOwner: group.ownerId === currentUser?.id,
-                  tags: group.tags
+                  isJoined: group.members?.includes(currentUser?.id || '') ?? false,
+                  isOwner: group.ownerId === currentUser?.id ?? false,
+                  tags: group.tags || []
                 }} 
               />
             </Grid>

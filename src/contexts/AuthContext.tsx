@@ -5,12 +5,14 @@ import { doc, getDoc } from 'firebase/firestore';
 
 interface AuthUser {
   uid: string;
+  id: string;
   email: string;
   name: string;
   username: string;
   customId: string;
   avatar?: string;
   bio?: string;
+  interests?: string[];
   isEmailVerified: boolean;
 }
 
@@ -49,12 +51,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const userData = userDoc.data();
             const authUser: AuthUser = {
               uid: user.uid,
+              id: user.uid,
               email: user.email || '',
               name: userData.name,
               username: userData.username,
               customId: userData.customId,
               avatar: userData.avatar,
               bio: userData.bio,
+              interests: userData.interests,
               isEmailVerified: user.emailVerified
             };
             setCurrentUser(authUser);

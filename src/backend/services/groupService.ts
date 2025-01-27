@@ -18,7 +18,10 @@ export interface Group {
   description: string;
   avatar?: string;
   banner?: string;
+  image?: string;
   ownerId: string;
+  members?: string[];
+  tags?: string[];
   isDiscoverable: boolean;
   memberCount: number;
   createdAt: Date;

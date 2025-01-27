@@ -11,7 +11,6 @@ import {
   useTheme,
   useMediaQuery
 } from '@mui/material';
-import { useAuth } from '../contexts/AuthContext';
 import { register } from '../backend/services/authService';
 import toast from 'react-hot-toast';
 
