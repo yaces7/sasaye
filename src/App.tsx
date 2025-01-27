@@ -1,9 +1,8 @@
-import { BrowserRouter as Router } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import Layout from './components/layout/Layout';
 import Notifications from './pages/Notifications';
-import { Route } from 'react-router-dom';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 
 const App = () => {
@@ -12,14 +11,16 @@ const App = () => {
       <ThemeProvider>
         <Router>
           <Layout />
-          <Route
-            path="/notifications"
-            element={
-              <ProtectedRoute>
-                <Notifications />
-              </ProtectedRoute>
-            }
-          />
+          <Routes>
+            <Route
+              path="/notifications"
+              element={
+                <ProtectedRoute>
+                  <Notifications />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
         </Router>
       </ThemeProvider>
     </AuthProvider>
