@@ -203,19 +203,46 @@ const updateUserChats = async (userId: string, chatId: string): Promise<void> =>
 };
 
 // Kullanıcı ara
-export const getUserByName = async (username: string): Promise<any[]> => {
+export const getUserByName = async (searchTerm: string): Promise<any[]> => {
   try {
-    const q = query(
+    const searchTermLower = searchTerm.toLowerCase();
+    
+    // Kullanıcı adı ile arama
+    const usernameQuery = query(
       collection(db, 'users'),
-      where('username', '>=', username.toLowerCase()),
-      where('username', '<=', username.toLowerCase() + '\uf8ff'),
-      limit(10)
+      where('username', '>=', searchTermLower),
+      where('username', '<=', searchTermLower + '\uf8ff'),
+      limit(5)
     );
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // CustomId ile arama
+    const customIdQuery = query(
+      collection(db, 'users'),
+      where('customId', '>=', searchTermLower),
+      where('customId', '<=', searchTermLower + '\uf8ff'),
+      limit(5)
+    );
+
+    const [usernameResults, customIdResults] = await Promise.all([
+      getDocs(usernameQuery),
+      getDocs(customIdQuery)
+    ]);
+
+    // Sonuçları birleştir ve tekrar edenleri kaldır
+    const results = [...usernameResults.docs, ...customIdResults.docs]
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        matchType: doc.data().username.toLowerCase().includes(searchTermLower) ? 'username' : 'customId'
+      }))
+      .filter((user, index, self) => 
+        index === self.findIndex(u => u.id === user.id)
+      );
+
+    return results;
   } catch (error) {
     console.error('Kullanıcı arama hatası:', error);
-    throw error;
+    return []; // Hata durumunda boş dizi dön
   }
 };
 

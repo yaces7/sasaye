@@ -53,6 +53,8 @@ const Messages = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewChatDialogOpen, setIsNewChatDialogOpen] = useState(false);
   const [newChatUsername, setNewChatUsername] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Sohbetleri dinle
@@ -121,23 +123,38 @@ const Messages = () => {
     return format(timestamp.toDate(), 'HH:mm', { locale: tr });
   };
 
+  // Kullanıcı ara
+  const handleUserSearch = async (searchTerm: string) => {
+    setNewChatUsername(searchTerm);
+    if (!searchTerm.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      const results = await getUserByName(searchTerm);
+      setSearchResults(results);
+      setSearchError(results.length === 0 ? 'Kullanıcı bulunamadı' : null);
+    } catch (error) {
+      setSearchError('Arama sırasında bir hata oluştu');
+      setSearchResults([]);
+    }
+  };
+
   // Yeni sohbet oluştur
-  const handleCreateNewChat = async () => {
-    if (!currentUser || !newChatUsername.trim()) return;
+  const handleCreateNewChat = async (receiverId: string) => {
+    if (!currentUser) return;
 
     try {
       setLoading(true);
-      const users = await getUserByName(newChatUsername);
-      if (users.length > 0) {
-        const receiverId = users[0].id;
-        const chatId = await createChat(currentUser.uid, receiverId);
-        const chat = await getChatById(chatId);
-        if (chat) {
-          setSelectedChat(chat);
-        }
+      const chatId = await createChat(currentUser.uid, receiverId);
+      const chat = await getChatById(chatId);
+      if (chat) {
+        setSelectedChat(chat);
       }
       setIsNewChatDialogOpen(false);
       setNewChatUsername('');
+      setSearchResults([]);
     } catch (error) {
       console.error('Sohbet oluşturma hatası:', error);
     } finally {
@@ -358,7 +375,12 @@ const Messages = () => {
         {/* Yeni Sohbet Dialog */}
         <Dialog
           open={isNewChatDialogOpen}
-          onClose={() => setIsNewChatDialogOpen(false)}
+          onClose={() => {
+            setIsNewChatDialogOpen(false);
+            setNewChatUsername('');
+            setSearchResults([]);
+            setSearchError(null);
+          }}
           maxWidth="sm"
           fullWidth
         >
@@ -366,23 +388,53 @@ const Messages = () => {
           <DialogContent>
             <TextField
               fullWidth
-              label="Kullanıcı Adı"
+              label="Kullanıcı Adı veya ID"
               value={newChatUsername}
-              onChange={(e) => setNewChatUsername(e.target.value)}
+              onChange={(e) => handleUserSearch(e.target.value)}
               margin="dense"
               autoFocus
+              helperText={searchError}
+              error={!!searchError}
+              InputProps={{
+                endAdornment: loading && (
+                  <InputAdornment position="end">
+                    <CircularProgress size={20} />
+                  </InputAdornment>
+                )
+              }}
             />
+            {searchResults.length > 0 && (
+              <List sx={{ mt: 2 }}>
+                {searchResults.map((user) => (
+                  <ListItemButton
+                    key={user.id}
+                    onClick={() => handleCreateNewChat(user.id)}
+                    disabled={loading}
+                  >
+                    <ListItemAvatar>
+                      <Avatar src={user.avatar}>
+                        {user.username?.[0]?.toUpperCase()}
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={user.username}
+                      secondary={`ID: ${user.customId}`}
+                    />
+                  </ListItemButton>
+                ))}
+              </List>
+            )}
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setIsNewChatDialogOpen(false)}>
-              İptal
-            </Button>
-            <Button
-              onClick={handleCreateNewChat}
-              disabled={loading || !newChatUsername.trim()}
-              variant="contained"
+            <Button 
+              onClick={() => {
+                setIsNewChatDialogOpen(false);
+                setNewChatUsername('');
+                setSearchResults([]);
+                setSearchError(null);
+              }}
             >
-              {loading ? <CircularProgress size={24} /> : 'Sohbet Başlat'}
+              İptal
             </Button>
           </DialogActions>
         </Dialog>
