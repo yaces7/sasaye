@@ -9,7 +9,8 @@ import {
   query,
   where,
   limit,
-  addDoc
+  addDoc,
+  increment
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { createNotification } from './notificationService';
@@ -38,33 +39,46 @@ export interface GroupMember {
   joinedAt: Date;
 }
 
+const MAX_GROUPS_PER_USER = 3;
+
 // Grup oluştur
-export const createGroup = async (groupData: Omit<Group, 'id' | 'memberCount' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+export const createGroup = async (
+  userId: string,
+  groupData: Omit<Group, 'id' | 'memberCount' | 'createdAt' | 'ownerId'>
+): Promise<string> => {
   try {
+    // Kullanıcının mevcut grup sayısını kontrol et
+    const userGroupsQuery = query(
+      collection(db, 'groups'),
+      where('ownerId', '==', userId)
+    );
+    const userGroups = await getDocs(userGroupsQuery);
+
+    if (userGroups.size >= MAX_GROUPS_PER_USER) {
+      throw new Error('En fazla 3 grup oluşturabilirsiniz.');
+    }
+
     const groupRef = doc(collection(db, 'groups'));
-    const now = new Date();
-    
     const newGroup: Group = {
       id: groupRef.id,
       ...groupData,
-      memberCount: 1,
-      isDiscoverable: false,
-      createdAt: now,
-      updatedAt: now
+      ownerId: userId,
+      memberCount: 1, // Oluşturan kişi otomatik üye olur
+      createdAt: new Date(),
+      members: [userId]
     };
 
     await setDoc(groupRef, newGroup);
 
-    // Kurucuyu üye olarak ekle
-    await setDoc(doc(db, 'groupMembers', `${groupRef.id}_${groupData.ownerId}`), {
-      userId: groupData.ownerId,
-      groupId: groupRef.id,
-      role: 'owner',
-      joinedAt: now
+    // Kullanıcıyı grubun üyesi olarak ekle
+    const groupMembersRef = doc(db, 'groupMembers', groupRef.id);
+    await setDoc(groupMembersRef, {
+      members: [userId],
+      joinedAt: { [userId]: new Date() }
     });
 
     return groupRef.id;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Grup oluşturma hatası:', error);
     throw error;
   }
@@ -74,28 +88,28 @@ export const createGroup = async (groupData: Omit<Group, 'id' | 'memberCount' | 
 export const getGroupById = async (groupId: string): Promise<Group | null> => {
   try {
     const groupDoc = await getDoc(doc(db, 'groups', groupId));
-    if (!groupDoc.exists()) return null;
-    return groupDoc.data() as Group;
+    if (!groupDoc.exists()) {
+      return null;
+    }
+    return { ...groupDoc.data(), id: groupDoc.id } as Group;
   } catch (error) {
-    console.error('Grup bilgileri alınamadı:', error);
+    console.error('Grup detayları alma hatası:', error);
     throw error;
   }
 };
 
 // Keşfedilebilir grupları getir
-export const getDiscoverableGroups = async (limitCount: number = 20): Promise<Group[]> => {
+export const getDiscoverableGroups = async (limitCount: number = 10): Promise<Group[]> => {
   try {
     const q = query(
       collection(db, 'groups'),
       where('isDiscoverable', '==', true),
-      where('memberCount', '>=', 10),
       limit(limitCount)
     );
-    
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => doc.data() as Group);
+    return querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Group);
   } catch (error) {
-    console.error('Keşfedilebilir gruplar alınamadı:', error);
+    console.error('Keşfedilebilir grupları alma hatası:', error);
     throw error;
   }
 };
@@ -189,20 +203,14 @@ export const getGroupMembers = async (groupId: string): Promise<GroupMember[]> =
 // Kullanıcının gruplarını getir
 export const getUserGroups = async (userId: string): Promise<Group[]> => {
   try {
-    const memberQuery = query(collection(db, 'groupMembers'), where('userId', '==', userId));
-    const memberSnapshot = await getDocs(memberQuery);
-    
-    const groupIds = memberSnapshot.docs.map(doc => doc.data().groupId);
-    const groups: Group[] = [];
-    
-    for (const groupId of groupIds) {
-      const group = await getGroupById(groupId);
-      if (group) groups.push(group);
-    }
-    
-    return groups;
+    const q = query(
+      collection(db, 'groups'),
+      where('members', 'array-contains', userId)
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Group);
   } catch (error) {
-    console.error('Kullanıcı grupları alınamadı:', error);
+    console.error('Kullanıcı gruplarını alma hatası:', error);
     throw error;
   }
 };
@@ -285,11 +293,11 @@ export const searchGroups = async (searchQuery: string): Promise<Group[]> => {
       collection(db, 'groups'),
       where('name', '>=', lowerQuery),
       where('name', '<=', lowerQuery + '\uf8ff'),
+      where('isDiscoverable', '==', true),
       limit(20)
     );
-
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => doc.data() as Group);
+    return querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Group);
   } catch (error) {
     console.error('Grup arama hatası:', error);
     throw error;
@@ -392,6 +400,27 @@ export const inviteUserByCustomId = async (groupId: string, customId: string, in
     await inviteToGroup(groupId, user.id, inviterUserId);
   } catch (error) {
     console.error('Kullanıcı daveti hatası:', error);
+    throw error;
+  }
+};
+
+export const deleteGroup = async (groupId: string, userId: string): Promise<void> => {
+  try {
+    const groupDoc = await getDoc(doc(db, 'groups', groupId));
+    if (!groupDoc.exists()) {
+      throw new Error('Grup bulunamadı.');
+    }
+
+    const groupData = groupDoc.data() as Group;
+    if (groupData.ownerId !== userId) {
+      throw new Error('Bu grubu silme yetkiniz yok.');
+    }
+
+    // Grup ve ilgili verileri sil
+    await deleteDoc(doc(db, 'groups', groupId));
+    await deleteDoc(doc(db, 'groupMembers', groupId));
+  } catch (error) {
+    console.error('Grup silme hatası:', error);
     throw error;
   }
 }; 

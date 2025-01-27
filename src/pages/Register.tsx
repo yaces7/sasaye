@@ -1,24 +1,30 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
 import {
   Box,
   Container,
+  Paper,
+  Typography,
   TextField,
   Button,
-  Typography,
-  Link,
+  Stepper,
+  Step,
+  StepLabel,
   CircularProgress,
-  useTheme,
-  useMediaQuery
+  Alert,
+  useTheme
 } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import { register } from '../backend/services/authService';
-import toast from 'react-hot-toast';
+
+const steps = ['Hesap Bilgileri', 'Email Doğrulama', 'Profil Oluşturma'];
 
 const Register = () => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
+  const theme = useTheme();
+  const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -26,21 +32,112 @@ const Register = () => {
     confirmPassword: ''
   });
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+    setError(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
-      toast.error('Şifreler eşleşmiyor');
-      return;
-    }
+    setError(null);
+    setSuccess(null);
     setLoading(true);
+
     try {
+      if (formData.password !== formData.confirmPassword) {
+        throw new Error('Şifreler eşleşmiyor');
+      }
+
       await register(formData.name, formData.email, formData.password);
-      toast.success('Kayıt başarılı! Giriş yapabilirsiniz.');
-      navigate('/login');
-    } catch (error: any) {
-      toast.error(error.message);
+      setSuccess('Email adresinize doğrulama linki gönderildi. Lütfen emailinizi kontrol edin.');
+      setActiveStep(1);
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getStepContent = (step: number) => {
+    switch (step) {
+      case 0:
+        return (
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              label="Ad Soyad"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              margin="normal"
+              required
+              autoFocus
+            />
+            <TextField
+              fullWidth
+              label="Email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              margin="normal"
+              required
+            />
+            <TextField
+              fullWidth
+              label="Şifre"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={handleChange}
+              margin="normal"
+              required
+            />
+            <TextField
+              fullWidth
+              label="Şifre Tekrar"
+              name="confirmPassword"
+              type="password"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              margin="normal"
+              required
+            />
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              sx={{ mt: 3, mb: 2 }}
+              disabled={loading}
+            >
+              {loading ? <CircularProgress size={24} /> : 'Kayıt Ol'}
+            </Button>
+          </Box>
+        );
+      case 1:
+        return (
+          <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <Typography variant="h6" gutterBottom>
+              Email Doğrulama
+            </Typography>
+            <Typography color="text.secondary" paragraph>
+              {formData.email} adresine doğrulama linki gönderdik.
+              Lütfen emailinizi kontrol edin ve linke tıklayarak hesabınızı doğrulayın.
+            </Typography>
+            <Button
+              variant="outlined"
+              onClick={() => navigate('/login')}
+              sx={{ mt: 2 }}
+            >
+              Giriş Sayfasına Git
+            </Button>
+          </Box>
+        );
+      default:
+        return null;
     }
   };
 
@@ -52,94 +149,63 @@ const Register = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        bgcolor: 'background.default',
         position: 'fixed',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        overflowY: 'auto',
-        bgcolor: 'background.default'
+        overflowY: 'auto'
       }}
     >
-      <Container maxWidth="xs">
-        <Box
+      <Container maxWidth="sm" sx={{ my: 4 }}>
+        <Paper
+          elevation={3}
           sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            p: 3,
-            bgcolor: 'background.paper',
+            p: 4,
             borderRadius: 2,
-            boxShadow: 3
+            bgcolor: 'background.paper'
           }}
         >
-          <Typography component="h1" variant="h5" sx={{ mb: 3 }}>
-            Kayıt Ol
+          <Typography variant="h4" align="center" gutterBottom>
+            Hesap Oluştur
           </Typography>
-          <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              label="Kullanıcı Adı"
-              name="name"
-              autoComplete="name"
-              autoFocus
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              disabled={loading}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              label="E-posta"
-              name="email"
-              autoComplete="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              disabled={loading}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              name="password"
-              label="Şifre"
-              type="password"
-              autoComplete="new-password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              disabled={loading}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              name="confirmPassword"
-              label="Şifre Tekrar"
-              type="password"
-              autoComplete="new-password"
-              value={formData.confirmPassword}
-              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-              disabled={loading}
-            />
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              sx={{ mt: 3, mb: 2 }}
-              disabled={loading}
-            >
-              {loading ? <CircularProgress size={24} /> : 'Kayıt Ol'}
-            </Button>
-            <Box sx={{ textAlign: 'center' }}>
-              <Link href="/login" variant="body2">
-                Zaten hesabın var mı? Giriş yap
-              </Link>
-            </Box>
+
+          <Stepper activeStep={activeStep} sx={{ my: 4 }}>
+            {steps.map((label) => (
+              <Step key={label}>
+                <StepLabel>{label}</StepLabel>
+              </Step>
+            ))}
+          </Stepper>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+
+          {success && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              {success}
+            </Alert>
+          )}
+
+          {getStepContent(activeStep)}
+
+          <Box sx={{ mt: 3, textAlign: 'center' }}>
+            <Typography variant="body2" color="text.secondary">
+              Zaten hesabınız var mı?{' '}
+              <Button
+                color="primary"
+                onClick={() => navigate('/login')}
+                sx={{ textTransform: 'none' }}
+              >
+                Giriş Yap
+              </Button>
+            </Typography>
           </Box>
-        </Box>
+        </Paper>
       </Container>
     </Box>
   );
