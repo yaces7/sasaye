@@ -1,6 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { db } from '../firebase';
-import { collection, addDoc, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, orderBy, Timestamp, limit, startAt, endAt } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 // Cloudinary yapılandırması
@@ -20,6 +20,8 @@ export interface Video {
   comments: number;
   isReel: boolean;
   createdAt: Timestamp;
+  title?: string;
+  views?: number;
 }
 
 export const uploadVideo = async (file: File, description: string): Promise<string> => {
@@ -47,7 +49,6 @@ export const uploadVideo = async (file: File, description: string): Promise<stri
           throw new Error('Kullanıcı oturum açmamış');
         }
 
-        // Firestore'a video bilgilerini kaydet
         const videoData: Omit<Video, 'id'> = {
           userId: user.uid,
           userName: user.displayName || 'Anonim',
@@ -56,7 +57,9 @@ export const uploadVideo = async (file: File, description: string): Promise<stri
           likes: 0,
           comments: 0,
           isReel: true,
-          createdAt: Timestamp.now()
+          createdAt: Timestamp.now(),
+          title: description,
+          views: 0
         };
 
         const docRef = await addDoc(collection(db, 'videos'), videoData);
@@ -86,5 +89,27 @@ export const getAllVideos = async (): Promise<Video[]> => {
   } catch (error) {
     console.error('Videoları getirme hatası:', error);
     throw error;
+  }
+};
+
+export const searchVideos = async (searchQuery: string): Promise<Video[]> => {
+  try {
+    const videosRef = collection(db, 'videos');
+    const q = query(
+      videosRef,
+      orderBy('title'),
+      startAt(searchQuery),
+      endAt(searchQuery + '\uf8ff'),
+      limit(20)
+    );
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Video));
+  } catch (error) {
+    console.error('Video arama hatası:', error);
+    return [];
   }
 };
