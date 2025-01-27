@@ -8,9 +8,12 @@ import {
   deleteDoc,
   query,
   where,
-  limit
+  limit,
+  addDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { createNotification } from './notificationService';
+import { getUserByCustomId } from './userService';
 
 export interface Group {
   id: string;
@@ -289,6 +292,106 @@ export const searchGroups = async (searchQuery: string): Promise<Group[]> => {
     return querySnapshot.docs.map(doc => doc.data() as Group);
   } catch (error) {
     console.error('Grup arama hatası:', error);
+    throw error;
+  }
+};
+
+// Gruba davet et
+export const inviteToGroup = async (groupId: string, invitedUserId: string, inviterUserId: string): Promise<void> => {
+  try {
+    const group = await getGroupById(groupId);
+    if (!group) throw new Error('Grup bulunamadı');
+
+    // Davet eden kişinin grup üyesi olup olmadığını kontrol et
+    const inviterMemberRef = doc(db, 'groupMembers', `${groupId}_${inviterUserId}`);
+    const inviterMemberDoc = await getDoc(inviterMemberRef);
+    if (!inviterMemberDoc.exists()) throw new Error('Davet etme yetkiniz yok');
+
+    // Davet edilen kişinin zaten grupta olup olmadığını kontrol et
+    const invitedMemberRef = doc(db, 'groupMembers', `${groupId}_${invitedUserId}`);
+    const invitedMemberDoc = await getDoc(invitedMemberRef);
+    if (invitedMemberDoc.exists()) throw new Error('Kullanıcı zaten grupta');
+
+    // Davet bilgisini kaydet
+    await addDoc(collection(db, 'groupInvites'), {
+      groupId,
+      invitedUserId,
+      inviterUserId,
+      status: 'pending',
+      createdAt: new Date()
+    });
+
+    // Bildirim oluştur
+    await createNotification({
+      userId: invitedUserId,
+      type: 'group_invite',
+      title: 'Grup Daveti',
+      message: `${group.name} grubuna davet edildiniz`,
+      link: `/groups/${groupId}`,
+      data: {
+        groupId,
+        senderId: inviterUserId
+      }
+    });
+
+  } catch (error) {
+    console.error('Gruba davet hatası:', error);
+    throw error;
+  }
+};
+
+// Daveti kabul et
+export const acceptGroupInvite = async (groupId: string, userId: string): Promise<void> => {
+  try {
+    const inviteQuery = query(
+      collection(db, 'groupInvites'),
+      where('groupId', '==', groupId),
+      where('invitedUserId', '==', userId),
+      where('status', '==', 'pending')
+    );
+
+    const inviteSnapshot = await getDocs(inviteQuery);
+    if (inviteSnapshot.empty) throw new Error('Davet bulunamadı');
+
+    const inviteDoc = inviteSnapshot.docs[0];
+    const invite = inviteDoc.data();
+
+    // Daveti kabul edildi olarak işaretle
+    await updateDoc(doc(db, 'groupInvites', inviteDoc.id), {
+      status: 'accepted'
+    });
+
+    // Kullanıcıyı gruba ekle
+    await addGroupMember(groupId, userId);
+
+    // Davet eden kişiye bildirim gönder
+    await createNotification({
+      userId: invite.inviterUserId,
+      type: 'group_join',
+      title: 'Davet Kabul Edildi',
+      message: `Davet ettiğiniz kişi gruba katıldı`,
+      link: `/groups/${groupId}`,
+      data: {
+        groupId,
+        senderId: userId
+      }
+    });
+
+  } catch (error) {
+    console.error('Davet kabul hatası:', error);
+    throw error;
+  }
+};
+
+// ID ile kullanıcı davet et
+export const inviteUserByCustomId = async (groupId: string, customId: string, inviterUserId: string): Promise<void> => {
+  try {
+    const user = await getUserByCustomId(customId);
+    if (!user) throw new Error('Kullanıcı bulunamadı');
+    
+    await inviteToGroup(groupId, user.id, inviterUserId);
+  } catch (error) {
+    console.error('Kullanıcı daveti hatası:', error);
     throw error;
   }
 }; 

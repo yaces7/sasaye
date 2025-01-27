@@ -23,7 +23,8 @@ import {
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
   Logout as LogoutIcon,
-  MovieCreation as ReelsIcon
+  MovieCreation as ReelsIcon,
+  Notifications as NotificationsIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme as useAppTheme } from '../../contexts/ThemeContext';
@@ -57,6 +58,7 @@ const Navbar = () => {
     { text: 'Videolar', icon: <VideoIcon />, path: '/videos' },
     { text: 'Gruplar', icon: <GroupIcon />, path: '/groups' },
     { text: 'Mesajlar', icon: <MessageIcon />, path: '/messages' },
+    { text: 'Bildirimler', icon: <NotificationsIcon />, path: '/notifications' },
   ];
 
   return (
