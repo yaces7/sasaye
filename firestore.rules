@@ -20,30 +20,28 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && 
-                   isEmailVerified() && 
                    request.auth.uid == userId;
       allow update: if isAuthenticated() && 
                    request.auth.uid == userId;
+      allow write: if isAuthenticated() && 
+                  request.auth.uid == userId;
     }
 
     // Sohbet koleksiyonu kuralları
     match /chats/{chatId} {
-      allow create: if isAuthenticated() && 
-                   isEmailVerified() && 
-                   notSpamming('chats');
+      allow create: if isAuthenticated();
       allow read: if isAuthenticated() && 
                  (request.auth.uid in resource.data.participants || 
                   !exists(/databases/$(database)/documents/chats/$(chatId)));
       allow update: if isAuthenticated() && 
                    request.auth.uid in resource.data.participants;
+      allow write: if isAuthenticated();
     }
 
     // Mesaj koleksiyonu kuralları
     match /messages/{messageId} {
       allow create: if isAuthenticated() && 
-                   isEmailVerified() && 
-                   request.resource.data.senderId == request.auth.uid && 
-                   notSpamming('messages');
+                   request.resource.data.senderId == request.auth.uid;
       allow read: if isAuthenticated() && 
                  (request.auth.uid == resource.data.senderId || 
                   request.auth.uid == resource.data.receiverId);
@@ -53,9 +51,7 @@ service cloud.firestore {
 
     // Bildirim koleksiyonu kuralları
     match /notifications/{notificationId} {
-      allow create: if isAuthenticated() && 
-                   isEmailVerified() && 
-                   notSpamming('notifications');
+      allow create: if isAuthenticated();
       allow read, delete: if isAuthenticated() && 
                          resource.data.userId == request.auth.uid;
     }

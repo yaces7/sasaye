@@ -56,6 +56,7 @@ const Messages = () => {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [sending, setSending] = useState(false);
 
   // Sohbetleri dinle
   useEffect(() => {
@@ -72,18 +73,15 @@ const Messages = () => {
 
   // Mesajları dinle
   useEffect(() => {
-    if (!selectedChat || !currentUser) return;
+    if (!selectedChat) return;
 
-    const unsubscribe = subscribeToMessages(selectedChat.id, (updatedMessages) => {
-      setMessages(updatedMessages);
+    const unsubscribe = subscribeToMessages(selectedChat.id, (newMessages) => {
+      setMessages(newMessages);
       scrollToBottom();
     });
 
-    // Mesajları okundu olarak işaretle
-    markMessagesAsRead(selectedChat.id, currentUser.uid);
-
     return () => unsubscribe();
-  }, [selectedChat, currentUser]);
+  }, [selectedChat]);
 
   // Otomatik kaydırma
   const scrollToBottom = () => {
@@ -93,10 +91,10 @@ const Messages = () => {
   // Mesaj gönder
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageText.trim() || !currentUser || !selectedChat) return;
+    if (!messageText.trim() || !selectedChat || !currentUser || sending) return;
 
-    setLoading(true);
     try {
+      setSending(true);
       const receiverId = selectedChat.participants.find(id => id !== currentUser.uid);
       if (!receiverId) return;
 
@@ -105,7 +103,7 @@ const Messages = () => {
     } catch (error) {
       console.error('Mesaj gönderme hatası:', error);
     } finally {
-      setLoading(false);
+      setSending(false);
     }
   };
 
@@ -299,21 +297,12 @@ const Messages = () => {
                           p: 1,
                           maxWidth: '70%',
                           bgcolor: message.senderId === currentUser?.uid ? 'primary.main' : 'background.paper',
-                          color: message.senderId === currentUser?.uid ? 'white' : 'text.primary'
+                          color: message.senderId === currentUser?.uid ? 'primary.contrastText' : 'text.primary'
                         }}
                       >
-                        <Typography variant="body1">
-                          {message.text}
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            display: 'block',
-                            textAlign: 'right',
-                            mt: 0.5
-                          }}
-                        >
-                          {formatMessageTime(message.timestamp)}
+                        <Typography variant="body1">{message.text}</Typography>
+                        <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                          {format(message.timestamp.toDate(), 'HH:mm')}
                         </Typography>
                       </Paper>
                     </Box>
@@ -322,38 +311,33 @@ const Messages = () => {
                 </Box>
 
                 {/* Mesaj Gönderme Formu */}
-                <Box
+                <Paper
                   component="form"
                   onSubmit={handleSendMessage}
                   sx={{
                     p: 2,
-                    borderTop: 1,
-                    borderColor: 'divider',
                     display: 'flex',
-                    gap: 1
+                    gap: 1,
+                    borderTop: 1,
+                    borderColor: 'divider'
                   }}
                 >
                   <TextField
                     fullWidth
+                    size="small"
                     placeholder="Mesajınızı yazın..."
                     value={messageText}
                     onChange={(e) => setMessageText(e.target.value)}
-                    disabled={loading}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage(e);
-                      }
-                    }}
+                    disabled={sending}
                   />
-                  <IconButton
-                    type="submit"
-                    color="primary"
-                    disabled={loading || !messageText.trim()}
+                  <IconButton 
+                    type="submit" 
+                    color="primary" 
+                    disabled={!messageText.trim() || sending}
                   >
-                    {loading ? <CircularProgress size={24} /> : <SendIcon />}
+                    {sending ? <CircularProgress size={24} /> : <SendIcon />}
                   </IconButton>
-                </Box>
+                </Paper>
               </>
             ) : (
               <Box

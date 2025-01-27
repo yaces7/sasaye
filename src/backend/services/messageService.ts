@@ -116,27 +116,28 @@ export const sendMessage = async (chatId: string, senderId: string, receiverId: 
       isRead: false
     };
 
+    const batch = writeBatch(db);
+    
     // Mesajı kaydet
-    await setDoc(messageRef, message);
-
+    batch.set(messageRef, message);
+    
     // Sohbeti güncelle
     const chatRef = doc(db, 'chats', chatId);
-    await updateDoc(chatRef, {
+    batch.update(chatRef, {
       lastMessage: text,
-      lastMessageTime: serverTimestamp(),
+      lastMessageTime: Timestamp.now(),
       [`unreadCount.${receiverId}`]: increment(1)
     });
 
-    // Bildirim gönder
+    await batch.commit();
+
+    // Bildirim oluştur
     await createNotification({
       userId: receiverId,
       type: 'message',
       title: 'Yeni Mesaj',
-      message: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
-      link: `/messages/${chatId}`,
-      data: {
-        senderId
-      }
+      body: text.length > 50 ? text.substring(0, 47) + '...' : text,
+      data: { chatId }
     });
   } catch (error) {
     console.error('Mesaj gönderme hatası:', error);
@@ -144,8 +145,25 @@ export const sendMessage = async (chatId: string, senderId: string, receiverId: 
   }
 };
 
-// Mesajları gerçek zamanlı dinle
-export const subscribeToMessages = (chatId: string, callback: (messages: Message[]) => void) => {
+// Mesajları getir
+export const getChatMessages = async (chatId: string): Promise<Message[]> => {
+  try {
+    const q = query(
+      collection(db, 'messages'),
+      where('chatId', '==', chatId),
+      orderBy('timestamp', 'asc')
+    );
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Message);
+  } catch (error) {
+    console.error('Mesajları getirme hatası:', error);
+    throw error;
+  }
+};
+
+// Mesajları dinle
+export const subscribeToMessages = (chatId: string, callback: (messages: Message[]) => void): () => void => {
   const q = query(
     collection(db, 'messages'),
     where('chatId', '==', chatId),
@@ -153,15 +171,10 @@ export const subscribeToMessages = (chatId: string, callback: (messages: Message
   );
 
   return onSnapshot(q, (snapshot) => {
-    const messages = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        ...data,
-        id: doc.id,
-        timestamp: data.timestamp
-      } as Message;
-    });
+    const messages = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as Message);
     callback(messages);
+  }, (error) => {
+    console.error('Mesaj dinleme hatası:', error);
   });
 };
 
