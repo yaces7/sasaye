@@ -12,13 +12,15 @@ import {
   updateDoc,
   arrayUnion,
   Timestamp,
-  writeBatch
+  writeBatch,
+  increment
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { createNotification } from './notificationService';
 
 export interface Message {
   id: string;
+  chatId: string;
   senderId: string;
   receiverId: string;
   text: string;
@@ -73,6 +75,7 @@ export const sendMessage = async (chatId: string, senderId: string, receiverId: 
     const messageRef = doc(collection(db, 'messages'));
     const message: Message = {
       id: messageRef.id,
+      chatId,
       senderId,
       receiverId,
       text,
@@ -88,7 +91,7 @@ export const sendMessage = async (chatId: string, senderId: string, receiverId: 
     await updateDoc(chatRef, {
       lastMessage: text,
       lastMessageTime: serverTimestamp(),
-      [`unreadCount.${receiverId}`]: arrayUnion(1)
+      [`unreadCount.${receiverId}`]: increment(1)
     });
 
     // Bildirim gönder
@@ -96,7 +99,7 @@ export const sendMessage = async (chatId: string, senderId: string, receiverId: 
       userId: receiverId,
       type: 'message',
       title: 'Yeni Mesaj',
-      message: 'Yeni bir mesajınız var',
+      message: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
       link: `/messages/${chatId}`,
       data: {
         senderId
@@ -117,10 +120,14 @@ export const subscribeToMessages = (chatId: string, callback: (messages: Message
   );
 
   return onSnapshot(q, (snapshot) => {
-    const messages = snapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id
-    }) as Message);
+    const messages = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        ...data,
+        id: doc.id,
+        timestamp: data.timestamp
+      } as Message;
+    });
     callback(messages);
   });
 };
