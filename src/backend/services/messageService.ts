@@ -145,7 +145,7 @@ export const subscribeToMessages = (chatId: string, callback: (messages: Message
   const q = query(
     collection(db, 'messages'),
     where('chatId', '==', chatId),
-    orderBy('timestamp', 'desc')
+    orderBy('timestamp', 'asc')
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -153,7 +153,7 @@ export const subscribeToMessages = (chatId: string, callback: (messages: Message
       ...doc.data(),
       id: doc.id
     }) as Message);
-    callback(messages.reverse()); // En eski mesajlar önce gelsin
+    callback(messages);
   }, (error) => {
     console.error('Mesaj dinleme hatası:', error);
   });
