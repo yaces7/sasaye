@@ -1,6 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { db } from '../firebase';
-import { collection, addDoc, getDocs, query, where, orderBy, Timestamp, limit, startAt, endAt } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, orderBy, Timestamp, limit, startAt, endAt, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 // Cloudinary yapılandırması
@@ -111,5 +111,33 @@ export const searchVideos = async (searchQuery: string): Promise<Video[]> => {
   } catch (error) {
     console.error('Video arama hatası:', error);
     return [];
+  }
+};
+
+export const getVideoById = async (videoId: string): Promise<Video | null> => {
+  try {
+    const videoRef = doc(db, 'videos', videoId);
+    const videoDoc = await getDoc(videoRef);
+    
+    if (!videoDoc.exists()) {
+      return null;
+    }
+
+    // Görüntülenme sayısını artır
+    const videoData = videoDoc.data() as Video;
+    const newViews = (videoData.views || 0) + 1;
+    
+    await updateDoc(videoRef, {
+      views: newViews
+    });
+
+    return {
+      id: videoDoc.id,
+      ...videoData,
+      views: newViews
+    };
+  } catch (error) {
+    console.error('Video getirme hatası:', error);
+    return null;
   }
 };
