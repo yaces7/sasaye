@@ -1,0 +1,127 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Kullanıcı doğrulama fonksiyonu
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Email doğrulama kontrolü
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    // Rate limiting fonksiyonu
+    function notSpamming(rateLimit) {
+      return request.time > get(/databases/$(database)/documents/users/$(request.auth.uid)).data.lastAction + duration.value(rateLimit, 's');
+    }
+
+    // Kullanıcı dokümanları
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() 
+        && request.auth.uid == userId;
+      allow update: if isAuthenticated() 
+        && request.auth.uid == userId 
+        && notSpamming(5); // 5 saniye rate limit
+    }
+
+    // Kullanıcı ayarları
+    match /userSettings/{userId} {
+      allow read: if isAuthenticated() 
+        && request.auth.uid == userId;
+      allow create: if isAuthenticated() 
+        && request.auth.uid == userId;
+      allow update: if isAuthenticated() 
+        && request.auth.uid == userId 
+        && notSpamming(5)  // 5 saniye rate limit
+        && validateSettings(); // Ayarların doğruluğunu kontrol et
+    }
+
+    // Ayarların doğruluğunu kontrol eden fonksiyon
+    function validateSettings() {
+      let settings = request.resource.data;
+      return 
+        settings.keys().hasAll(['emailNotifications', 'privateProfile', 'theme', 'language']) &&
+        settings.emailNotifications is bool &&
+        settings.privateProfile is bool &&
+        settings.theme in ['light', 'dark'] &&
+        settings.language in ['tr', 'en'];
+    }
+
+    // Grup dokümanları
+    match /groups/{groupId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() 
+        && isEmailVerified()
+        && notSpamming(30) // 30 saniye rate limit
+        && getUserGroupCount() < 3; // Maksimum 3 grup
+      allow update: if isAuthenticated() 
+        && isGroupMember(groupId)
+        && notSpamming(5);
+      allow delete: if isAuthenticated() 
+        && isGroupOwner(groupId)
+        && notSpamming(60); // 60 saniye rate limit
+    }
+
+    // Mesaj dokümanları
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() 
+        && isMessageParticipant(messageId);
+      allow create: if isAuthenticated() 
+        && isEmailVerified()
+        && notSpamming(2); // 2 saniye rate limit
+      allow delete: if isAuthenticated() 
+        && isMessageOwner(messageId)
+        && notSpamming(5);
+    }
+
+    // Yorum dokümanları
+    match /comments/{commentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() 
+        && isEmailVerified()
+        && notSpamming(10); // 10 saniye rate limit
+      allow delete: if isAuthenticated() 
+        && isCommentOwner(commentId)
+        && notSpamming(5);
+    }
+
+    // Bildirim dokümanları
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() 
+        && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticated() 
+        && notSpamming(5);
+      allow delete: if isAuthenticated() 
+        && request.auth.uid == resource.data.userId;
+    }
+
+    // Yardımcı fonksiyonlar
+    function isGroupMember(groupId) {
+      return request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
+    }
+
+    function isGroupOwner(groupId) {
+      return request.auth.uid == get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId;
+    }
+
+    function isMessageParticipant(messageId) {
+      return request.auth.uid in get(/databases/$(database)/documents/messages/$(messageId)).data.participants;
+    }
+
+    function isMessageOwner(messageId) {
+      return request.auth.uid == get(/databases/$(database)/documents/messages/$(messageId)).data.senderId;
+    }
+
+    function isCommentOwner(commentId) {
+      return request.auth.uid == get(/databases/$(database)/documents/comments/$(commentId)).data.userId;
+    }
+
+    function getUserGroupCount() {
+      return getAfter(/databases/$(database)/documents/groups)
+        .where('ownerId', '==', request.auth.uid)
+        .count();
+    }
+  }
+} 
