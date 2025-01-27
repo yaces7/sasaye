@@ -148,15 +148,21 @@ const Messages = () => {
 
   // Mesajları dinle
   useEffect(() => {
-    if (!selectedChat) return;
+    if (!selectedChat || !currentUser) return;
 
+    // Mesajları okundu olarak işaretle
+    markMessagesAsRead(selectedChat.id, currentUser.uid);
+
+    // Gerçek zamanlı mesaj dinleme
     const unsubscribe = subscribeToMessages(selectedChat.id, (newMessages) => {
       setMessages(newMessages);
       scrollToBottom();
     });
 
-    return () => unsubscribe();
-  }, [selectedChat]);
+    return () => {
+      unsubscribe();
+    };
+  }, [selectedChat, currentUser]);
 
   // Otomatik kaydırma
   const scrollToBottom = () => {
@@ -173,24 +179,10 @@ const Messages = () => {
       const receiverId = selectedChat.participants.find(id => id !== currentUser.uid);
       if (!receiverId) return;
 
-      // Geçici mesaj oluştur
-      const tempMessage: Message = {
-        id: 'temp-' + Date.now(),
-        chatId: selectedChat.id,
-        senderId: currentUser.uid,
-        receiverId,
-        text: messageText.trim(),
-        timestamp: Timestamp.now(),
-        isRead: false
-      };
-
-      // Geçici mesajı ekle
-      setMessages(prev => [...prev, tempMessage]);
-      scrollToBottom();
-
       // Mesajı gönder
       await sendMessage(selectedChat.id, currentUser.uid, receiverId, messageText.trim());
       setMessageText('');
+      scrollToBottom();
     } catch (error) {
       console.error('Mesaj gönderme hatası:', error);
     } finally {
@@ -290,6 +282,7 @@ const Messages = () => {
           >
             <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
               <TextField
+                size="small"
                 fullWidth
                 placeholder="Sohbet ara..."
                 value={searchQuery}
@@ -297,19 +290,28 @@ const Messages = () => {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <SearchIcon />
+                      <SearchIcon fontSize="small" />
                     </InputAdornment>
                   )
                 }}
+                sx={{ flex: 1 }}
               />
               <Tooltip title="Yeni Sohbet">
-                <Fab
-                  size="small"
+                <IconButton
                   color="primary"
                   onClick={() => setIsNewChatDialogOpen(true)}
+                  sx={{ 
+                    width: 35,
+                    height: 35,
+                    bgcolor: 'primary.main',
+                    color: 'white',
+                    '&:hover': {
+                      bgcolor: 'primary.dark'
+                    }
+                  }}
                 >
-                  <AddIcon />
-                </Fab>
+                  <AddIcon fontSize="small" />
+                </IconButton>
               </Tooltip>
             </Box>
 
