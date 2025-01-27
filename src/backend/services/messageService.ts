@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { createNotification } from './notificationService';
+import toast from 'react-hot-toast';
 
 export interface Message {
   id: string;
@@ -145,17 +146,22 @@ export const subscribeToMessages = (chatId: string, callback: (messages: Message
   const q = query(
     collection(db, 'messages'),
     where('chatId', '==', chatId),
-    orderBy('timestamp', 'asc')
+    orderBy('timestamp', 'asc'),
+    limit(100)
   );
 
-  return onSnapshot(q, (snapshot) => {
-    const messages = snapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id
-    }) as Message);
-    callback(messages);
-  }, (error) => {
-    console.error('Mesaj dinleme hatası:', error);
+  return onSnapshot(q, {
+    next: (snapshot) => {
+      const messages = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      }) as Message);
+      callback(messages);
+    },
+    error: (error) => {
+      console.error('Mesaj dinleme hatası:', error);
+      toast.error('Mesajlar yüklenirken bir hata oluştu');
+    }
   });
 };
 

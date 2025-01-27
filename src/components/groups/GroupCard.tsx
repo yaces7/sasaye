@@ -22,9 +22,11 @@ interface GroupCardProps {
     isOwner: boolean;
     tags: string[];
   };
+  onJoin?: (groupId: string) => void;
+  onLeave?: (groupId: string) => void;
 }
 
-const GroupCard: React.FC<GroupCardProps> = ({ group }) => {
+const GroupCard: React.FC<GroupCardProps> = ({ group, onJoin, onLeave }) => {
   const navigate = useNavigate();
 
   return (

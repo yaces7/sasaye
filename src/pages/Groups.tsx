@@ -11,7 +11,7 @@ interface Group {
   memberCount: number;
   image: string;
   isJoined: boolean;
-  isOwner?: boolean;
+  isOwner: boolean;
   tags: string[];
 }
 
@@ -29,6 +29,7 @@ const Groups = () => {
       memberCount: 1250,
       image: 'https://source.unsplash.com/random/400x300?coding',
       isJoined: false,
+      isOwner: false,
       tags: ['React', 'JavaScript', 'Web Development'],
     },
     {
@@ -38,6 +39,7 @@ const Groups = () => {
       memberCount: 850,
       image: 'https://source.unsplash.com/random/400x300?typescript',
       isJoined: false,
+      isOwner: false,
       tags: ['TypeScript', 'JavaScript', 'Programming'],
     },
     {
@@ -47,6 +49,7 @@ const Groups = () => {
       memberCount: 2100,
       image: 'https://source.unsplash.com/random/400x300?design',
       isJoined: false,
+      isOwner: false,
       tags: ['UI', 'UX', 'Design'],
     },
     {
@@ -56,6 +59,7 @@ const Groups = () => {
       memberCount: 1800,
       image: 'https://source.unsplash.com/random/400x300?frontend',
       isJoined: false,
+      isOwner: false,
       tags: ['Frontend', 'Web', 'Development'],
     },
   ]);
