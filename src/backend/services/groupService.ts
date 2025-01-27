@@ -269,4 +269,23 @@ export const leaveGroup = async (groupId: string, userId: string): Promise<void>
     console.error('Gruptan ayrılma hatası:', error);
     throw error;
   }
+};
+
+// Grupları ara
+export const searchGroups = async (searchQuery: string): Promise<Group[]> => {
+  try {
+    const lowerQuery = searchQuery.toLowerCase();
+    const q = query(
+      collection(db, 'groups'),
+      where('name', '>=', lowerQuery),
+      where('name', '<=', lowerQuery + '\uf8ff'),
+      limit(20)
+    );
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => doc.data() as Group);
+  } catch (error) {
+    console.error('Grup arama hatası:', error);
+    throw error;
+  }
 }; 
