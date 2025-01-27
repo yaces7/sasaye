@@ -57,20 +57,19 @@ export const createChat = async (currentUserId: string, otherUserId: string): Pr
     const currentUserData = currentUserDoc.data();
     const otherUserData = otherUserDoc.data();
 
-    // Sohbet isimlerini ayarla - her kullanıcı karşısındakinin ismini görecek
-    const participantNames = {
-      [currentUserId]: otherUserData.name || 'İsimsiz Kullanıcı',
-      [otherUserId]: currentUserData.name || 'İsimsiz Kullanıcı'
-    };
-
     // Yeni sohbet oluştur
     const chatRef = await addDoc(collection(db, 'chats'), {
       participants: [currentUserId, otherUserId],
-      participantNames,
+      participantNames: {
+        [currentUserId]: otherUserData.name || 'İsimsiz Kullanıcı',
+        [otherUserId]: currentUserData.name || 'İsimsiz Kullanıcı'
+      },
       unreadCounts: {
         [currentUserId]: 0,
         [otherUserId]: 0
       },
+      lastMessage: '',
+      lastMessageTime: Timestamp.now(),
       createdAt: serverTimestamp()
     });
 
