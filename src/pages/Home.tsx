@@ -87,7 +87,7 @@ const Home = () => {
                 mb: 3,
               }}
             >
-              SaSaYe
+              Payte
             </Typography>
             <Typography variant="h5" color="text.secondary" sx={{ mb: 4 }}>
               Video paylaşın, mesajlaşın, gruplara katılın ve daha fazlası...

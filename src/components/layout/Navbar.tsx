@@ -82,7 +82,7 @@ const Navbar = () => {
         borderColor: 'divider',
         bgcolor: 'background.paper'
       }}>
-        <Tooltip title="SaSaYe" placement="left">
+        <Tooltip title="Payte" placement="left">
           <Typography
             component={RouterLink}
             to="/"
@@ -97,7 +97,7 @@ const Navbar = () => {
               py: 0.5
             }}
           >
-            SSY
+            Payte
           </Typography>
         </Tooltip>
       </Box>
