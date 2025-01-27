@@ -14,11 +14,19 @@ import {
   Divider,
   CircularProgress,
   Badge,
-  InputAdornment
+  InputAdornment,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Fab,
+  Tooltip
 } from '@mui/material';
 import {
   Send as SendIcon,
-  Search as SearchIcon
+  Search as SearchIcon,
+  Add as AddIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -28,7 +36,9 @@ import {
   subscribeToChats,
   markMessagesAsRead,
   Message,
-  Chat
+  Chat,
+  getUserByName,
+  getChatById
 } from '../backend/services/messageService';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -40,8 +50,10 @@ const Messages = () => {
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(false);
   const [messageText, setMessageText] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isNewChatDialogOpen, setIsNewChatDialogOpen] = useState(false);
+  const [newChatUsername, setNewChatUsername] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Sohbetleri dinle
   useEffect(() => {
@@ -109,6 +121,30 @@ const Messages = () => {
     return format(timestamp.toDate(), 'HH:mm', { locale: tr });
   };
 
+  // Yeni sohbet oluştur
+  const handleCreateNewChat = async () => {
+    if (!currentUser || !newChatUsername.trim()) return;
+
+    try {
+      setLoading(true);
+      const users = await getUserByName(newChatUsername);
+      if (users.length > 0) {
+        const receiverId = users[0].id;
+        const chatId = await createChat(currentUser.uid, receiverId);
+        const chat = await getChatById(chatId);
+        if (chat) {
+          setSelectedChat(chat);
+        }
+      }
+      setIsNewChatDialogOpen(false);
+      setNewChatUsername('');
+    } catch (error) {
+      console.error('Sohbet oluşturma hatası:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Box
       sx={{
@@ -146,7 +182,7 @@ const Messages = () => {
               flexDirection: 'column'
             }}
           >
-            <Box sx={{ p: 2 }}>
+            <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
               <TextField
                 fullWidth
                 placeholder="Sohbet ara..."
@@ -160,6 +196,15 @@ const Messages = () => {
                   )
                 }}
               />
+              <Tooltip title="Yeni Sohbet">
+                <Fab
+                  size="small"
+                  color="primary"
+                  onClick={() => setIsNewChatDialogOpen(true)}
+                >
+                  <AddIcon />
+                </Fab>
+              </Tooltip>
             </Box>
 
             <List sx={{ flexGrow: 1, overflow: 'auto' }}>
@@ -309,6 +354,38 @@ const Messages = () => {
             )}
           </Box>
         </Paper>
+
+        {/* Yeni Sohbet Dialog */}
+        <Dialog
+          open={isNewChatDialogOpen}
+          onClose={() => setIsNewChatDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Yeni Sohbet</DialogTitle>
+          <DialogContent>
+            <TextField
+              fullWidth
+              label="Kullanıcı Adı"
+              value={newChatUsername}
+              onChange={(e) => setNewChatUsername(e.target.value)}
+              margin="dense"
+              autoFocus
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setIsNewChatDialogOpen(false)}>
+              İptal
+            </Button>
+            <Button
+              onClick={handleCreateNewChat}
+              disabled={loading || !newChatUsername.trim()}
+              variant="contained"
+            >
+              {loading ? <CircularProgress size={24} /> : 'Sohbet Başlat'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Container>
     </Box>
   );

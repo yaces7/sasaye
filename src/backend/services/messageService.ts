@@ -13,7 +13,8 @@ import {
   arrayUnion,
   Timestamp,
   writeBatch,
-  increment
+  increment,
+  limit
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { createNotification } from './notificationService';
@@ -199,4 +200,35 @@ const updateUserChats = async (userId: string, chatId: string): Promise<void> =>
   await updateDoc(userRef, {
     chats: arrayUnion(chatId)
   });
+};
+
+// Kullanıcı ara
+export const getUserByName = async (username: string): Promise<any[]> => {
+  try {
+    const q = query(
+      collection(db, 'users'),
+      where('username', '>=', username.toLowerCase()),
+      where('username', '<=', username.toLowerCase() + '\uf8ff'),
+      limit(10)
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error('Kullanıcı arama hatası:', error);
+    throw error;
+  }
+};
+
+// Sohbet detaylarını getir
+export const getChatById = async (chatId: string): Promise<Chat | null> => {
+  try {
+    const chatDoc = await getDoc(doc(db, 'chats', chatId));
+    if (chatDoc.exists()) {
+      return { id: chatDoc.id, ...chatDoc.data() } as Chat;
+    }
+    return null;
+  } catch (error) {
+    console.error('Sohbet getirme hatası:', error);
+    throw error;
+  }
 }; 
