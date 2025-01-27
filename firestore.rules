@@ -10,6 +10,11 @@ service cloud.firestore {
       return request.auth.token.email_verified;
     }
 
+    function isChatParticipant(chatId) {
+      let chat = get(/databases/$(database)/documents/chats/$(chatId));
+      return request.auth.uid in chat.data.participants;
+    }
+
     // Rate limiting kontrolü
     function notSpamming(path) {
       let recentRequests = get(/databases/$(database)/documents/rateLimits/$(request.auth.uid)).data.requests[path];
@@ -20,6 +25,13 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Mesaj koleksiyonu kuralları
+    match /messages/{messageId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.senderId;
     }
 
     // Sohbet koleksiyonu kuralları
@@ -35,15 +47,16 @@ service cloud.firestore {
       // Alt koleksiyonlar için kurallar
       match /messages/{messageId} {
         allow read: if isAuthenticated() && 
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+          isChatParticipant(chatId);
         allow create: if isAuthenticated() && 
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&
-          request.auth.uid == request.resource.data.senderId &&
-          notSpamming('messages');
+          isChatParticipant(chatId) &&
+          request.auth.uid == request.resource.data.senderId;
         allow update: if isAuthenticated() &&
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&
-          (!request.resource.data.diff(resource.data).affectedKeys()
-            .hasAny(['senderId', 'timestamp', 'text']));
+          isChatParticipant(chatId) &&
+          request.auth.uid == resource.data.senderId;
+        allow delete: if isAuthenticated() &&
+          isChatParticipant(chatId) &&
+          request.auth.uid == resource.data.senderId;
       }
     }
 
@@ -63,28 +76,19 @@ service cloud.firestore {
                    request.resource.data.requests[request.resource.data.path] == 0;
     }
 
-    // Grup kuralları - daha izin verici hale getirildi
+    // Grup kuralları
     match /groups/{groupId} {
-      allow read: if true;  // Herkes okuyabilir
-      allow create: if isAuthenticated();  // Giriş yapan herkes oluşturabilir
-      allow update: if isAuthenticated() && 
-        (request.auth.uid == resource.data.ownerId || 
-         request.auth.uid in resource.data.members);
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
       allow delete: if isAuthenticated() && request.auth.uid == resource.data.ownerId;
-      
-      // Grup üyeleri koleksiyonu
-      match /members/{memberId} {
-        allow read: if true;
-        allow write: if isAuthenticated();
-      }
     }
 
     // Video kuralları
     match /videos/{videoId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && 
-        resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
     }
 
     // Yorum kuralları
