@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -17,10 +17,13 @@ import {
   DialogActions,
   CircularProgress,
   Alert,
+  Container,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import { Send as SendIcon, Add as AddIcon } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserByCustomId, getUserByName, User } from '../backend/services/userService';
+import { getUserByCustomId, getUserByName, AppUser } from '../backend/services/userService';
 import { 
   sendMessage, 
   subscribeToMessages, 
@@ -33,7 +36,7 @@ interface Chat {
   lastMessage?: string;
   timestamp: Date;
   unreadCount: number;
-  user: User;
+  user: AppUser;
 }
 
 const Messages = () => {
@@ -48,8 +51,11 @@ const Messages = () => {
   // Yeni sohbet oluşturma
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResult, setSearchResult] = useState<User | null>(null);
+  const [searchResults, setSearchResults] = useState<AppUser[]>([]);
   const [searching, setSearching] = useState(false);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Sohbetleri yükle
   useEffect(() => {
@@ -58,12 +64,12 @@ const Messages = () => {
       
       try {
         setLoading(true);
-        const chatIds = await getUserChats(currentUser.id);
+        const chatIds = await getUserChats(currentUser.uid);
         
         const loadedChats = await Promise.all(
           chatIds.map(async (chatId) => {
             const [user1Id, user2Id] = chatId.split('_');
-            const otherUserId = user1Id === currentUser.id ? user2Id : user1Id;
+            const otherUserId = user1Id === currentUser.uid ? user2Id : user1Id;
             const otherUser = await getUserByCustomId(otherUserId);
             
             if (!otherUser) return null;
@@ -93,7 +99,7 @@ const Messages = () => {
     if (!currentUser || !selectedChat) return;
 
     const unsubscribe = subscribeToMessages(
-      currentUser.id,
+      currentUser.uid,
       selectedChat.userId,
       (newMessages) => {
         setMessages(newMessages);
@@ -109,7 +115,7 @@ const Messages = () => {
     try {
       await sendMessage(
         selectedChat.userId,
-        currentUser.id,
+        currentUser.uid,
         newMessage.trim()
       );
       setNewMessage('');
@@ -130,11 +136,21 @@ const Messages = () => {
       
       // Bulunamazsa isim ile ara
       if (!user) {
-        user = await getUserByName(searchQuery);
+        const users = await getUserByName(searchQuery);
+        setSearchResults(users.map(user => ({
+          ...user,
+          createdAt: new Date(),
+          isEmailVerified: false
+        })));
+      } else {
+        setSearchResults([{
+          ...user,
+          createdAt: new Date(),
+          isEmailVerified: false
+        }]);
       }
 
-      setSearchResult(user);
-      if (!user) {
+      if (searchResults.length === 0) {
         setError('Kullanıcı bulunamadı');
       }
     } catch (err) {
@@ -145,17 +161,17 @@ const Messages = () => {
   };
 
   const handleStartChat = async () => {
-    if (!searchResult || !currentUser) return;
+    if (searchResults.length === 0 || !currentUser) return;
 
     // Eğer zaten varsa, mevcut sohbeti aç
-    const existingChat = chats.find(chat => chat.userId === searchResult.id);
+    const existingChat = chats.find(chat => chat.userId === searchResults[0].id);
     if (existingChat) {
       setSelectedChat(existingChat);
     } else {
       // Yeni sohbet oluştur
       const newChat: Chat = {
-        userId: searchResult.id,
-        user: searchResult,
+        userId: searchResults[0].id,
+        user: searchResults[0],
         timestamp: new Date(),
         unreadCount: 0
       };
@@ -165,7 +181,7 @@ const Messages = () => {
 
     setIsNewChatOpen(false);
     setSearchQuery('');
-    setSearchResult(null);
+    setSearchResults([]);
   };
 
   if (loading) {
@@ -177,130 +193,285 @@ const Messages = () => {
   }
 
   return (
-    <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)' }}>
-      {/* Sol panel - Sohbet listesi */}
-      <Paper sx={{ width: 320, borderRadius: 0 }}>
-        <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-          <Button
-            fullWidth
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setIsNewChatOpen(true)}
-          >
-            Yeni Sohbet
-          </Button>
-        </Box>
-        
-        <List sx={{ overflow: 'auto', height: 'calc(100% - 64px)' }}>
-          {chats.length === 0 ? (
-            <Box sx={{ p: 2, textAlign: 'center' }}>
-              <Typography color="text.secondary">
-                Henüz hiç sohbetiniz yok
-              </Typography>
-            </Box>
-          ) : (
-            chats.map((chat) => (
-              <ListItem
-                key={chat.userId}
-                sx={{
-                  cursor: 'pointer',
-                  '&:hover': { backgroundColor: 'action.hover' },
-                  backgroundColor: selectedChat?.userId === chat.userId ? 'action.selected' : 'inherit'
-                }}
-                onClick={() => setSelectedChat(chat)}
-              >
-                <ListItemAvatar>
-                  <Avatar src={chat.user.avatar} alt={chat.user.name} />
-                </ListItemAvatar>
-                <ListItemText
-                  primary={chat.user.name}
-                  secondary={chat.lastMessage || 'Yeni sohbet'}
-                />
-              </ListItem>
-            ))
-          )}
-        </List>
-      </Paper>
-
-      {/* Sağ panel - Mesajlaşma alanı */}
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {selectedChat ? (
-          <>
-            {/* Sohbet başlığı */}
-            <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-              <Typography variant="h6">
-                {selectedChat.user.name}
-              </Typography>
-            </Box>
-
-            {/* Mesajlar */}
-            <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-              {messages.map((message) => (
-                <Box
-                  key={message.id}
-                  sx={{
-                    display: 'flex',
-                    justifyContent: message.senderId === currentUser?.id ? 'flex-end' : 'flex-start',
-                    mb: 2,
-                  }}
-                >
-                  <Paper
-                    sx={{
-                      p: 2,
-                      maxWidth: '70%',
-                      bgcolor: message.senderId === currentUser?.id ? 'primary.main' : 'grey.100',
-                      color: message.senderId === currentUser?.id ? 'white' : 'text.primary',
-                    }}
-                  >
-                    <Typography>{message.content}</Typography>
-                  </Paper>
-                </Box>
-              ))}
-            </Box>
-
-            {/* Mesaj gönderme alanı */}
-            <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <TextField
-                  fullWidth
-                  placeholder="Mesajınızı yazın..."
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                />
-                <IconButton
-                  color="primary"
-                  onClick={handleSendMessage}
-                  disabled={!newMessage.trim()}
-                >
-                  <SendIcon />
-                </IconButton>
-              </Box>
-            </Box>
-          </>
-        ) : (
-          <Box
-            sx={{
+    <Box sx={{
+      minHeight: '100vh',
+      width: '100vw',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      overflowY: 'auto',
+      bgcolor: 'background.default'
+    }}>
+      <Container maxWidth={false} sx={{ 
+        my: { xs: 0, sm: 4 },
+        maxWidth: '1600px',
+        mx: 'auto',
+        px: { xs: 0, sm: 3 }
+      }}>
+        <Paper sx={{ 
+          width: '100%',
+          height: '80vh',
+          display: 'flex',
+          borderRadius: { xs: isMobile ? 0 : 2, sm: 2 },
+          boxShadow: isMobile ? 'none' : theme => `0 8px 24px ${theme.palette.primary.light}25`,
+          overflow: 'hidden'
+        }}>
+          {/* Sol Panel - Sohbet Listesi */}
+          <Box sx={{ 
+            width: 400, 
+            borderRight: 1, 
+            borderColor: 'divider',
+            display: 'flex',
+            flexDirection: 'column',
+            bgcolor: 'background.paper'
+          }}>
+            {/* Başlık ve Yeni Sohbet Butonu */}
+            <Box sx={{ 
+              p: 2,
+              borderBottom: 1,
+              borderColor: 'divider',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-            }}
-          >
-            <Typography color="text.secondary">
-              Sohbet başlatmak için sol menüden bir kişi seçin veya yeni sohbet oluşturun
-            </Typography>
-          </Box>
-        )}
-      </Box>
+              justifyContent: 'space-between'
+            }}>
+              <Typography variant="h6">Mesajlar</Typography>
+              <IconButton onClick={() => setIsNewChatOpen(true)}>
+                <AddIcon />
+              </IconButton>
+            </Box>
 
-      {/* Yeni sohbet oluşturma dialog'u */}
-      <Dialog open={isNewChatOpen} onClose={() => setIsNewChatOpen(false)}>
+            {/* Sohbet Listesi */}
+            <List sx={{ 
+              flexGrow: 1, 
+              overflow: 'auto',
+              '& .MuiListItem-root': {
+                '&:hover': {
+                  bgcolor: 'action.hover'
+                }
+              }
+            }}>
+              {chats.map((chat) => (
+                <ListItem
+                  key={chat.userId}
+                  component="div"
+                  sx={{
+                    cursor: 'pointer',
+                    bgcolor: selectedChat?.userId === chat.userId ? 'action.selected' : 'transparent',
+                    '&:hover': {
+                      bgcolor: 'action.hover'
+                    }
+                  }}
+                  onClick={() => setSelectedChat(chat)}
+                >
+                  <ListItemAvatar>
+                    <Avatar src={chat.user.avatar}>
+                      {chat.user.name?.[0]}
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={chat.user.name}
+                    secondary={chat.lastMessage || 'Yeni sohbet'}
+                    primaryTypographyProps={{
+                      fontWeight: chat.unreadCount > 0 ? 'bold' : 'normal'
+                    }}
+                    secondaryTypographyProps={{
+                      noWrap: true,
+                      style: {
+                        fontWeight: chat.unreadCount > 0 ? 'bold' : 'normal'
+                      }
+                    }}
+                  />
+                  {chat.unreadCount > 0 && (
+                    <Box
+                      sx={{
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                        borderRadius: '50%',
+                        width: 20,
+                        height: 20,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.75rem'
+                      }}
+                    >
+                      {chat.unreadCount}
+                    </Box>
+                  )}
+                </ListItem>
+              ))}
+              {chats.length === 0 && (
+                <Box sx={{ p: 2, textAlign: 'center' }}>
+                  <Typography color="text.secondary">
+                    Henüz hiç sohbetiniz yok
+                  </Typography>
+                </Box>
+              )}
+            </List>
+          </Box>
+
+          {/* Sağ Panel - Mesajlaşma Alanı */}
+          <Box sx={{ 
+            flexGrow: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            bgcolor: 'background.default'
+          }}>
+            {selectedChat ? (
+              <>
+                {/* Seçili Sohbet Başlığı */}
+                <Box sx={{ 
+                  p: 2,
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  bgcolor: 'background.paper',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}>
+                  <Avatar 
+                    src={selectedChat.user.avatar}
+                    sx={{ width: 40, height: 40, mr: 2 }}
+                  >
+                    {selectedChat.user.name?.[0]}
+                  </Avatar>
+                  <Typography variant="subtitle1">
+                    {selectedChat.user.name}
+                  </Typography>
+                </Box>
+
+                {/* Mesajlar */}
+                <Box sx={{ 
+                  flexGrow: 1,
+                  overflow: 'auto',
+                  p: 2,
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
+                  {messages.map((message) => (
+                    <Box
+                      key={message.id}
+                      sx={{
+                        alignSelf: message.senderId === currentUser?.uid ? 'flex-end' : 'flex-start',
+                        maxWidth: '70%',
+                        mb: 1
+                      }}
+                    >
+                      <Paper
+                        sx={{
+                          p: 1.5,
+                          bgcolor: message.senderId === currentUser?.uid ? 'primary.main' : 'grey.100',
+                          color: message.senderId === currentUser?.uid ? 'white' : 'text.primary',
+                          borderRadius: 2
+                        }}
+                      >
+                        <Typography variant="body1">
+                          {message.content}
+                        </Typography>
+                        <Typography 
+                          variant="caption" 
+                          sx={{ 
+                            display: 'block',
+                            textAlign: 'right',
+                            mt: 0.5,
+                            opacity: 0.8
+                          }}
+                        >
+                          {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </Typography>
+                      </Paper>
+                    </Box>
+                  ))}
+                </Box>
+
+                {/* Mesaj Yazma Alanı */}
+                <Box sx={{ 
+                  p: 2,
+                  borderTop: 1,
+                  borderColor: 'divider',
+                  bgcolor: 'background.paper',
+                  display: 'flex',
+                  gap: 1
+                }}>
+                  <TextField
+                    fullWidth
+                    placeholder="Mesaj yazın..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    multiline
+                    maxRows={4}
+                    size="small"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 2
+                      }
+                    }}
+                  />
+                  <IconButton 
+                    onClick={handleSendMessage}
+                    disabled={!newMessage.trim()}
+                    sx={{ 
+                      bgcolor: 'primary.main',
+                      color: 'white',
+                      '&:hover': {
+                        bgcolor: 'primary.dark'
+                      },
+                      '&.Mui-disabled': {
+                        bgcolor: 'action.disabledBackground'
+                      }
+                    }}
+                  >
+                    <SendIcon />
+                  </IconButton>
+                </Box>
+              </>
+            ) : (
+              <Box sx={{ 
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                p: 3,
+                textAlign: 'center'
+              }}>
+                <Typography variant="h6" gutterBottom>
+                  Mesajlarınız
+                </Typography>
+                <Typography color="text.secondary">
+                  Sohbet başlatmak için sol menüden bir kişi seçin veya yeni sohbet oluşturun
+                </Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => setIsNewChatOpen(true)}
+                  sx={{ mt: 2 }}
+                >
+                  Yeni Sohbet
+                </Button>
+              </Box>
+            )}
+          </Box>
+        </Paper>
+      </Container>
+
+      {/* Yeni Sohbet Dialog'u */}
+      <Dialog 
+        open={isNewChatOpen} 
+        onClose={() => setIsNewChatOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
         <DialogTitle>Yeni Sohbet</DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 1 }}>
@@ -327,16 +498,17 @@ const Messages = () => {
               </Alert>
             )}
 
-            {searchResult && (
+            {searchResults.length > 0 && (
               <Box sx={{ mt: 2, textAlign: 'center' }}>
                 <Avatar
-                  src={searchResult.avatar}
-                  alt={searchResult.name}
+                  src={searchResults[0].avatar}
                   sx={{ width: 64, height: 64, mx: 'auto', mb: 1 }}
-                />
-                <Typography variant="h6">{searchResult.name}</Typography>
+                >
+                  {searchResults[0].name?.[0]}
+                </Avatar>
+                <Typography variant="h6">{searchResults[0].name}</Typography>
                 <Typography color="text.secondary">
-                  ID: {searchResult.customId}
+                  ID: {searchResults[0].customId}
                 </Typography>
               </Box>
             )}
@@ -346,7 +518,7 @@ const Messages = () => {
           <Button onClick={() => setIsNewChatOpen(false)}>İptal</Button>
           <Button
             onClick={handleStartChat}
-            disabled={!searchResult}
+            disabled={searchResults.length === 0}
             variant="contained"
           >
             Sohbet Başlat

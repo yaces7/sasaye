@@ -1,3 +1,5 @@
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../firebase';
 import axios from 'axios';
 
 // Cloudinary yapılandırması
@@ -14,8 +16,9 @@ const MAX_VIDEO_DURATION = 60; // saniye cinsinden maksimum video süresi
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
 
-export interface UploadResult {
+interface UploadResult {
   url: string;
+  path: string;
   publicId: string;
 }
 
@@ -55,6 +58,7 @@ export const uploadImage = async (file: File): Promise<UploadResult> => {
     const response = await axios.post(`${CLOUDINARY_API_URL}/image/upload`, formData);
     return {
       url: response.data.secure_url,
+      path: response.data.public_id,
       publicId: response.data.public_id
     };
   } catch (error: any) {
@@ -89,6 +93,7 @@ export const uploadVideo = async (file: File): Promise<UploadResult> => {
     const response = await axios.post(`${CLOUDINARY_API_URL}/video/upload`, formData);
     return {
       url: response.data.secure_url,
+      path: response.data.public_id,
       publicId: response.data.public_id
     };
   } catch (error: any) {
@@ -113,9 +118,9 @@ export const deleteFile = async (publicId: string, resourceType: 'image' | 'vide
 };
 
 // Dosya boyutu kontrolü
-export const validateFileSize = (file: File, maxSizeMB: number = 10): boolean => {
-  const maxSize = maxSizeMB * 1024 * 1024; // MB to bytes
-  return file.size <= maxSize;
+export const validateFileSize = (file: File, maxSizeMB: number): boolean => {
+  const maxSizeBytes = maxSizeMB * 1024 * 1024;
+  return file.size <= maxSizeBytes;
 };
 
 // Dosya tipi kontrolü
@@ -153,4 +158,26 @@ export const getOptimizedVideoUrl = (
 
   const parts = url.split('/upload/');
   return `${parts[0]}/upload/${qualityMap[quality]}/${parts[1]}`;
+};
+
+export const uploadFile = async (file: File, folder: string): Promise<UploadResult> => {
+  try {
+    // Dosya adını benzersiz yap
+    const timestamp = Date.now();
+    const fileName = `${timestamp}_${file.name}`;
+    const path = `${folder}/${fileName}`;
+    
+    // Storage referansı oluştur
+    const storageRef = ref(storage, path);
+    
+    // Dosyayı yükle
+    await uploadBytes(storageRef, file);
+    
+    // Download URL'ini al
+    const url = await getDownloadURL(storageRef);
+    
+    return { url, path, publicId: '' };
+  } catch (error: any) {
+    throw new Error('Dosya yükleme hatası: ' + error.message);
+  }
 }; 

@@ -6,6 +6,7 @@ import { doc, getDoc } from 'firebase/firestore';
 interface AuthUser {
   uid: string;
   email: string;
+  name: string;
   username: string;
   customId: string;
   avatar?: string;
@@ -49,6 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const authUser: AuthUser = {
               uid: user.uid,
               email: user.email || '',
+              name: userData.name,
               username: userData.username,
               customId: userData.customId,
               avatar: userData.avatar,

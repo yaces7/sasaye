@@ -1,13 +1,9 @@
 import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   sendEmailVerification,
   sendPasswordResetEmail,
-  updateProfile,
   updateEmail,
-  updatePassword,
-  User as FirebaseUser 
+  updatePassword
 } from 'firebase/auth';
 import { 
   doc, 
@@ -17,7 +13,8 @@ import {
   collection,
   query,
   where,
-  getDocs
+  getDocs,
+  limit
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 
@@ -69,13 +66,69 @@ export const updateUserSettings = async (userId: string, settings: Partial<UserS
   }
 };
 
-// Kullanıcı oluştur
-export const createUser = async (user: AppUser, userData: {
-  username: string;
-  customId: string;
-}): Promise<void> => {
+// Kullanıcı adı kontrolü
+const isValidUsername = (username: string): boolean => {
+  const invalidChars = /[ğüşçıĞÜŞÇİ]/;
+  return !invalidChars.test(username);
+};
+
+// Kullanıcı adının benzersiz olduğunu kontrol et
+export const isUsernameUnique = async (username: string): Promise<boolean> => {
   try {
-    // Kullanıcı dokümanı oluşturma işlemleri burada yapılacak
+    const q = query(collection(db, 'users'), where('username', '==', username));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.empty;
+  } catch (error) {
+    console.error('Kullanıcı adı kontrolü hatası:', error);
+    throw error;
+  }
+};
+
+// Benzersiz ID kontrolü
+const isCustomIdUnique = async (customId: string): Promise<boolean> => {
+  try {
+    const q = query(collection(db, 'users'), where('customId', '==', customId));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.empty;
+  } catch (error) {
+    console.error('CustomID kontrolü hatası:', error);
+    throw error;
+  }
+};
+
+// Benzersiz 9 haneli kullanıcı ID'si oluştur
+export const generateCustomId = async (): Promise<string> => {
+  const min = 100000000;
+  const max = 999999999;
+  let customId: string;
+  do {
+    customId = Math.floor(min + Math.random() * (max - min + 1)).toString();
+  } while (!(await isCustomIdUnique(customId)));
+  return customId;
+};
+
+// Kullanıcı oluştur
+export const createUser = async (user: AppUser): Promise<void> => {
+  try {
+    if (!isValidUsername(user.name)) {
+      throw new Error('Kullanıcı adı Türkçe karakter içeremez (ğ,ü,ş,ç,ı)');
+    }
+
+    if (!(await isUsernameUnique(user.name))) {
+      throw new Error('Bu kullanıcı adı zaten kullanılıyor');
+    }
+
+    const customId = await generateCustomId();
+
+    await setDoc(doc(db, 'users', user.id), {
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar,
+      customId: customId,
+      bio: user.bio,
+      createdAt: user.createdAt,
+      isEmailVerified: user.isEmailVerified
+    });
   } catch (error) {
     console.error('Kullanıcı oluşturma hatası:', error);
     throw error;
@@ -116,18 +169,20 @@ export const getUserByCustomId = async (customId: string): Promise<AppUser | nul
 };
 
 // İsim ile kullanıcı ara
-export const getUserByName = async (name: string): Promise<AppUser | null> => {
+export const getUserByName = async (name: string): Promise<AppUser[]> => {
   try {
-    const q = query(collection(db, 'users'), where('name', '==', name));
+    const q = query(
+      collection(db, 'users'),
+      where('name', '>=', name.toLowerCase()),
+      where('name', '<=', name.toLowerCase() + '\uf8ff'),
+      limit(10)
+    );
     const querySnapshot = await getDocs(q);
     
-    if (querySnapshot.empty) return null;
-    const userDoc = querySnapshot.docs[0];
-
-    return {
-      id: userDoc.id,
-      ...userDoc.data() as Omit<AppUser, 'id'>
-    };
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data() as Omit<AppUser, 'id'>
+    }));
   } catch (error: any) {
     throw new Error('Kullanıcı bilgileri alınamadı: ' + error.message);
   }
@@ -179,11 +234,6 @@ export const sendPasswordReset = async (email: string): Promise<void> => {
   } catch (error: any) {
     throw new Error('Şifre sıfırlama emaili gönderilemedi: ' + error.message);
   }
-};
-
-// Benzersiz kullanıcı ID'si oluştur
-const generateCustomId = (): string => {
-  return Math.random().toString().slice(2, 11);
 };
 
 // Email doğrulama durumunu kontrol et
