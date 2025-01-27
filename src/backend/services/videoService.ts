@@ -1,14 +1,9 @@
-import { v2 as cloudinary } from 'cloudinary';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, orderBy, Timestamp, limit, startAt, endAt, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
-// Cloudinary yapılandırması
-cloudinary.config({
-  cloud_name: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dxsl9h1kw',
-  api_key: import.meta.env.VITE_CLOUDINARY_API_KEY || '972894172892977',
-  api_secret: import.meta.env.VITE_CLOUDINARY_API_SECRET || '0fRcJJ__u4bNOL6eVW4ryaeLph8'
-});
+const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dxsl9h1kw';
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'ml_default';
 
 export interface Video {
   id: string;
@@ -25,55 +20,50 @@ export interface Video {
 }
 
 export const uploadVideo = async (file: File, description: string): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    
-    reader.onload = async () => {
-      try {
-        const base64Data = reader.result as string;
-        
-        const uploadResult = await cloudinary.uploader.upload(base64Data, {
-          resource_type: 'video',
-          folder: 'reels',
-          transformation: [
-            { quality: 'auto' },
-            { fetch_format: 'auto' }
-          ]
-        });
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    formData.append('resource_type', 'video');
+    formData.append('folder', 'reels');
 
-        const auth = getAuth();
-        const user = auth.currentUser;
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`, {
+      method: 'POST',
+      body: formData
+    });
 
-        if (!user) {
-          throw new Error('Kullanıcı oturum açmamış');
-        }
+    if (!response.ok) {
+      throw new Error('Video yükleme başarısız');
+    }
 
-        const videoData: Omit<Video, 'id'> = {
-          userId: user.uid,
-          userName: user.displayName || 'Anonim',
-          videoUrl: uploadResult.secure_url,
-          description,
-          likes: 0,
-          comments: 0,
-          isReel: true,
-          createdAt: Timestamp.now(),
-          title: description,
-          views: 0
-        };
+    const uploadResult = await response.json();
 
-        const docRef = await addDoc(collection(db, 'videos'), videoData);
-        resolve(docRef.id);
-      } catch (error) {
-        console.error('Video yükleme hatası:', error);
-        reject(error);
-      }
+    const auth = getAuth();
+    const user = auth.currentUser;
+
+    if (!user) {
+      throw new Error('Kullanıcı oturum açmamış');
+    }
+
+    const videoData: Omit<Video, 'id'> = {
+      userId: user.uid,
+      userName: user.displayName || 'Anonim',
+      videoUrl: uploadResult.secure_url,
+      description,
+      likes: 0,
+      comments: 0,
+      isReel: true,
+      createdAt: Timestamp.now(),
+      title: description,
+      views: 0
     };
 
-    reader.onerror = (error) => {
-      reject(error);
-    };
-  });
+    const docRef = await addDoc(collection(db, 'videos'), videoData);
+    return docRef.id;
+  } catch (error) {
+    console.error('Video yükleme hatası:', error);
+    throw error;
+  }
 };
 
 export const getAllVideos = async (): Promise<Video[]> => {
