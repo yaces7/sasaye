@@ -237,3 +237,25 @@ export const inviteUserByCustomId = async (groupId: string, invitedUserId: strin
     throw error;
   }
 };
+
+export const searchGroups = async (searchQuery: string): Promise<Group[]> => {
+  try {
+    const q = query(
+      collection(db, 'groups'),
+      where('name', '>=', searchQuery),
+      where('name', '<=', searchQuery + '\uf8ff'),
+      orderBy('name'),
+      where('isPublic', '==', true),
+      limit(20)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Group));
+  } catch (error) {
+    console.error('Grup arama hatası:', error);
+    return [];
+  }
+};
