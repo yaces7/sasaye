@@ -32,6 +32,7 @@ export interface Message {
 export interface Chat {
   id: string;
   participants: string[];
+  participantNames: { [key: string]: string };
   lastMessage?: string;
   lastMessageTime?: Timestamp;
   unreadCount: { [key: string]: number };
@@ -46,11 +47,30 @@ export const createChat = async (userId: string, receiverId: string): Promise<st
       return existingChat.id;
     }
 
+    // Kullanıcı bilgilerini al
+    const [senderDoc, receiverDoc] = await Promise.all([
+      getDoc(doc(db, 'users', userId)),
+      getDoc(doc(db, 'users', receiverId))
+    ]);
+
+    if (!senderDoc.exists() || !receiverDoc.exists()) {
+      throw new Error('Kullanıcı bulunamadı');
+    }
+
+    const sender = senderDoc.data();
+    const receiver = receiverDoc.data();
+
     // Yeni sohbet oluştur
     const chatRef = doc(collection(db, 'chats'));
     const newChat: Chat = {
       id: chatRef.id,
       participants: [userId, receiverId],
+      participantNames: {
+        [userId]: sender.username || sender.displayName,
+        [receiverId]: receiver.username || receiver.displayName
+      },
+      lastMessage: '',
+      lastMessageTime: Timestamp.now(),
       unreadCount: {
         [userId]: 0,
         [receiverId]: 0
@@ -60,8 +80,14 @@ export const createChat = async (userId: string, receiverId: string): Promise<st
     await setDoc(chatRef, newChat);
 
     // Her iki kullanıcının sohbet listesini güncelle
-    await updateUserChats(userId, chatRef.id);
-    await updateUserChats(receiverId, chatRef.id);
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'users', userId), {
+      chats: arrayUnion(chatRef.id)
+    });
+    batch.update(doc(db, 'users', receiverId), {
+      chats: arrayUnion(chatRef.id)
+    });
+    await batch.commit();
 
     return chatRef.id;
   } catch (error) {
@@ -192,14 +218,6 @@ const findExistingChat = async (userId: string, receiverId: string): Promise<Cha
   });
 
   return existingChat ? { ...existingChat.data(), id: existingChat.id } as Chat : null;
-};
-
-// Kullanıcının sohbet listesini güncelle
-const updateUserChats = async (userId: string, chatId: string): Promise<void> => {
-  const userRef = doc(db, 'users', userId);
-  await updateDoc(userRef, {
-    chats: arrayUnion(chatId)
-  });
 };
 
 // Kullanıcı ara
