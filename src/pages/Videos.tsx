@@ -3,6 +3,7 @@ import { Box, Container, Typography, Button, Paper, Grid, useTheme, useMediaQuer
 import { VideoCall } from '@mui/icons-material';
 import VideoCard from '../components/video/VideoCard';
 import VideoUploadModal from '../components/video/VideoUploadModal';
+import { Timestamp } from 'firebase/firestore';
 
 interface Video {
   id: string;
@@ -136,7 +137,10 @@ const Videos = () => {
           <Grid container spacing={3}>
             {videos.map((video) => (
               <Grid item xs={12} sm={6} md={4} key={video.id}>
-                <VideoCard video={video} />
+                <VideoCard video={{
+                  ...video,
+                  createdAt: Timestamp.fromDate(video.createdAt)
+                }} />
               </Grid>
             ))}
           </Grid>

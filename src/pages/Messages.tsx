@@ -11,7 +11,6 @@ import {
   ListItemText,
   ListItemAvatar,
   Avatar,
-  Divider,
   CircularProgress,
   Badge,
   InputAdornment,
@@ -20,7 +19,6 @@ import {
   DialogContent,
   DialogActions,
   Button,
-  Fab,
   Tooltip,
   useTheme,
   useMediaQuery
@@ -45,7 +43,6 @@ import {
 } from '../backend/services/messageService';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { Timestamp } from 'firebase/firestore';
 
 interface ChatListItemProps {
   chat: Chat;

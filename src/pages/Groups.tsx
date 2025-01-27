@@ -81,82 +81,191 @@ const Groups = () => {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '100vh',
+        bgcolor: 'background.default'
+      }}>
         <CircularProgress />
       </Box>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h4">Gruplar</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setCreateDialogOpen(true)}
-        >
-          Yeni Grup
-        </Button>
-      </Box>
+    <Box sx={{ 
+      minHeight: '100vh',
+      bgcolor: 'background.default',
+      pt: 4,
+      pb: 6
+    }}>
+      <Container maxWidth="lg">
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          mb: 4,
+          borderBottom: 1,
+          borderColor: 'divider',
+          pb: 2
+        }}>
+          <Typography 
+            variant="h4" 
+            sx={{ 
+              background: (theme) => theme.palette.gradient.primary,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              fontWeight: 'bold'
+            }}
+          >
+            Gruplar
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setCreateDialogOpen(true)}
+            sx={{
+              background: (theme) => theme.palette.gradient.secondary,
+              '&:hover': {
+                background: (theme) => theme.palette.gradient.mixed
+              }
+            }}
+          >
+            Yeni Grup
+          </Button>
+        </Box>
 
-      {groups.length === 0 ? (
-        <Typography variant="body1" color="text.secondary" align="center">
-          Henüz hiç grup yok
-        </Typography>
-      ) : (
-        <Grid container spacing={3}>
-          {groups.map((group) => (
-            <Grid item xs={12} sm={6} md={4} key={group.id}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <Avatar 
-                      src={group.image}
-                      sx={{ width: 40, height: 40, mr: 2 }}
-                    >
-                      {group.name[0]}
-                    </Avatar>
-                    <Box>
-                      <Typography variant="h6" gutterBottom>
-                        {group.name}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {group.description}
-                      </Typography>
+        {groups.length === 0 ? (
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '60vh',
+            gap: 2
+          }}>
+            <Typography variant="h6" color="text.secondary">
+              Henüz hiç grup yok
+            </Typography>
+            <Button 
+              variant="contained"
+              onClick={() => setCreateDialogOpen(true)}
+              sx={{
+                background: (theme) => theme.palette.gradient.primary,
+                '&:hover': {
+                  background: (theme) => theme.palette.gradient.mixed
+                }
+              }}
+            >
+              İlk Grubu Oluştur
+            </Button>
+          </Box>
+        ) : (
+          <Grid container spacing={3}>
+            {groups.map((group) => (
+              <Grid item xs={12} sm={6} md={4} key={group.id}>
+                <Card 
+                  sx={{ 
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: (theme) => theme.palette.mode === 'light' 
+                        ? '0 8px 24px rgba(33, 150, 243, 0.2)'
+                        : '0 8px 24px rgba(0, 0, 0, 0.3)'
+                    },
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => navigate(`/groups/${group.id}`)}
+                >
+                  <CardContent sx={{ flex: 1, p: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                      <Avatar 
+                        src={group.image}
+                        sx={{ 
+                          width: 64, 
+                          height: 64, 
+                          mr: 2,
+                          background: (theme) => theme.palette.gradient.primary
+                        }}
+                      >
+                        {group.name[0]}
+                      </Avatar>
+                      <Box>
+                        <Typography variant="h6" gutterBottom>
+                          {group.name}
+                        </Typography>
+                        <Typography 
+                          variant="body2" 
+                          color="text.secondary"
+                          sx={{ 
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            mb: 1
+                          }}
+                        >
+                          {group.description}
+                        </Typography>
+                      </Box>
                     </Box>
-                  </Box>
 
-                  {group.tags && group.tags.length > 0 && (
-                    <Box sx={{ mb: 2 }}>
-                      {group.tags.map((tag, index) => (
-                        <Chip
-                          key={index}
-                          label={tag}
-                          size="small"
-                          sx={{ mr: 1, mb: 1 }}
-                        />
-                      ))}
+                    {group.tags && group.tags.length > 0 && (
+                      <Box sx={{ mb: 2 }}>
+                        {group.tags.map((tag, index) => (
+                          <Chip
+                            key={index}
+                            label={tag}
+                            size="small"
+                            sx={{ 
+                              mr: 1, 
+                              mb: 1,
+                              background: (theme) => theme.palette.gradient.primary,
+                              color: 'white'
+                            }}
+                          />
+                        ))}
+                      </Box>
+                    )}
+
+                    <Box sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}>
+                      <Typography 
+                        variant="body2"
+                        sx={{ 
+                          color: 'primary.main',
+                          fontWeight: 'medium'
+                        }}
+                      >
+                        {group.memberCount} üye
+                      </Typography>
+                      <Button 
+                        size="small"
+                        sx={{
+                          background: (theme) => theme.palette.gradient.secondary,
+                          color: 'white',
+                          '&:hover': {
+                            background: (theme) => theme.palette.gradient.mixed
+                          }
+                        }}
+                      >
+                        Detaylar
+                      </Button>
                     </Box>
-                  )}
-
-                  <Typography variant="body2" color="text.secondary">
-                    {group.memberCount} üye
-                  </Typography>
-                </CardContent>
-                <CardActions>
-                  <Button 
-                    size="small" 
-                    onClick={() => navigate(`/groups/${group.id}`)}
-                  >
-                    Detaylar
-                  </Button>
-                </CardActions>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      )}
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        )}
+      </Container>
 
       <Dialog
         open={createDialogOpen}
@@ -202,7 +311,7 @@ const Groups = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </Container>
+    </Box>
   );
 };
 
