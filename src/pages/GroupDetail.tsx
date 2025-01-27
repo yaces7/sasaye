@@ -48,8 +48,6 @@ const GroupDetail = () => {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteUserId, setInviteUserId] = useState('');
   const [inviting, setInviting] = useState(false);
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     const loadGroupData = async () => {
