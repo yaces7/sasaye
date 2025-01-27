@@ -206,7 +206,7 @@ const Reels = () => {
   return (
     <Box sx={{
       minHeight: '100vh',
-      width: '100vw',
+      width: '100%',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -224,7 +224,7 @@ const Reels = () => {
         sx={{
           position: 'fixed',
           top: 16,
-          right: 16,
+          left: 16,
           zIndex: 1000
         }}
         onClick={() => setUploadDialogOpen(true)}
@@ -232,13 +232,20 @@ const Reels = () => {
         <AddIcon />
       </Fab>
 
-      <Container maxWidth="sm" sx={{ height: '100vh', py: 2 }}>
+      <Box sx={{ 
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        maxWidth: isMobile ? '100%' : '380px',
+        margin: '0 auto'
+      }}>
         <Paper
           elevation={3}
           sx={{
-            width: isMobile ? '100%' : '380px',
+            width: '100%',
             height: '85vh',
-            margin: '0 auto',
             position: 'relative',
             overflow: 'hidden',
             bgcolor: 'black',
@@ -363,7 +370,7 @@ const Reels = () => {
             </Box>
           ))}
         </Paper>
-      </Container>
+      </Box>
 
       {/* Menü */}
       <Menu
