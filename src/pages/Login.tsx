@@ -1,81 +1,72 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
+  Container,
   Paper,
   Typography,
   TextField,
   Button,
-  Link,
+  CircularProgress,
   Alert,
-  useTheme,
-  useMediaQuery,
-  CircularProgress
+  useTheme
 } from '@mui/material';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../backend/firebase';
-import { getUserById } from '../backend/services/userService';
+import { useNavigate } from 'react-router-dom';
+import { login, checkEmailVerification } from '../backend/services/authService';
+import { useAuth } from '../contexts/AuthContext';
 
 const Login = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const { currentUser } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
+
+  useEffect(() => {
+    // Kullanıcı zaten giriş yapmışsa ana sayfaya yönlendir
+    if (currentUser) {
+      navigate('/');
+    }
+
+    // Email doğrulama durumunu kontrol et
+    const checkVerification = async () => {
+      const isVerified = await checkEmailVerification();
+      if (isVerified) {
+        setSuccess('Email adresiniz başarıyla doğrulandı. Giriş yapabilirsiniz.');
+      }
+    };
+
+    checkVerification();
+  }, [currentUser, navigate]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+    setError(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError(null);
+    setSuccess(null);
     setLoading(true);
 
     try {
-      // Firebase ile giriş yap
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const firebaseUser = userCredential.user;
-
-      // Email doğrulaması kontrolü
-      if (!firebaseUser.emailVerified) {
-        setError('Lütfen email adresinizi doğrulayın.');
-        return;
-      }
-
-      // Firestore'dan kullanıcı bilgilerini al
-      const userData = await getUserById(firebaseUser.uid);
-      if (!userData) {
-        setError('Kullanıcı bilgileri alınamadı.');
-        return;
-      }
-
-      // Local storage'a kullanıcı bilgilerini kaydet
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('user', JSON.stringify(userData));
-
-      // Ana sayfaya yönlendir
-      navigate('/');
-    } catch (error: any) {
-      if (error.code === 'auth/invalid-email') {
-        setError('Geçersiz email adresi.');
-      } else if (error.code === 'auth/user-disabled') {
-        setError('Bu hesap devre dışı bırakılmış.');
-      } else if (error.code === 'auth/user-not-found') {
-        setError('Bu email adresi ile kayıtlı kullanıcı bulunamadı.');
-      } else if (error.code === 'auth/wrong-password') {
-        setError('Hatalı şifre.');
-      } else {
-        setError('Giriş yapılırken bir hata oluştu: ' + error.message);
-      }
+      await login(formData.email, formData.password);
+      setSuccess('Giriş başarılı! Yönlendiriliyorsunuz...');
+      setTimeout(() => navigate('/'), 1500);
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
-
-  // Sayfa yüklendiğinde scroll'u sıfırla
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
 
   return (
     <Box
@@ -85,151 +76,87 @@ const Login = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        bgcolor: 'background.default',
         position: 'fixed',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        overflowY: 'auto',
-        backgroundColor: theme => theme.palette.background.default,
+        overflowY: 'auto'
       }}
     >
-      <Paper
-        elevation={3}
-        sx={{
-          width: '100%',
-          maxWidth: {
-            xs: '100%',
-            sm: '450px',
-            md: '500px'
-          },
-          mx: 'auto',
-          my: { xs: 0, sm: 4 },
-          p: { xs: 3, sm: 4 },
-          borderRadius: { xs: isMobile ? 0 : 2, sm: 2 },
-          boxShadow: isMobile ? 'none' : theme => `0 8px 24px ${theme.palette.primary.light}25`,
-          ...(isMobile && {
-            minHeight: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-          }),
-        }}
-      >
-        <Typography
-          variant={isMobile ? "h5" : "h4"}
-          component="h1"
-          align="center"
+      <Container maxWidth="sm" sx={{ my: 4 }}>
+        <Paper
+          elevation={3}
           sx={{
-            color: 'primary.main',
-            fontWeight: 600,
-            mb: 4,
+            p: 4,
+            borderRadius: 2,
+            bgcolor: 'background.paper'
           }}
         >
-          Giriş Yap
-        </Typography>
-
-        {error && (
-          <Alert 
-            severity="error" 
-            sx={{ 
-              mb: 3,
-              borderRadius: 1,
-            }}
-          >
-            {error}
-          </Alert>
-        )}
-
-        <Box 
-          component="form" 
-          onSubmit={handleSubmit}
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2.5,
-            width: '100%',
-          }}
-        >
-          <TextField
-            fullWidth
-            label="E-posta"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            variant="outlined"
-            size="medium"
-            disabled={loading}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 1.5,
-              },
-            }}
-          />
-
-          <TextField
-            fullWidth
-            label="Şifre"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            variant="outlined"
-            size="medium"
-            disabled={loading}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 1.5,
-              },
-            }}
-          />
-
-          <Button
-            type="submit"
-            variant="contained"
-            fullWidth
-            size="large"
-            disabled={loading}
-            sx={{
-              mt: 2,
-              py: { xs: 1.5, sm: 2 },
-              borderRadius: 1.5,
-              textTransform: 'none',
-              fontSize: { xs: '1rem', sm: '1.1rem' },
-              fontWeight: 600,
-              minHeight: 48,
-            }}
-          >
-            {loading ? <CircularProgress size={24} /> : 'Giriş Yap'}
-          </Button>
-
-          <Typography 
-            align="center" 
-            sx={{ 
-              mt: 2,
-              color: 'text.secondary',
-              fontSize: { xs: '0.9rem', sm: '1rem' },
-            }}
-          >
-            Hesabınız yok mu?{' '}
-            <Link
-              component={RouterLink}
-              to="/register"
-              sx={{
-                color: 'primary.main',
-                textDecoration: 'none',
-                fontWeight: 600,
-                '&:hover': {
-                  textDecoration: 'underline',
-                },
-              }}
-            >
-              Kayıt Ol
-            </Link>
+          <Typography variant="h4" align="center" gutterBottom>
+            Giriş Yap
           </Typography>
-        </Box>
-      </Paper>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+
+          {success && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              {success}
+            </Alert>
+          )}
+
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              label="Email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              margin="normal"
+              required
+              autoFocus
+            />
+            <TextField
+              fullWidth
+              label="Şifre"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={handleChange}
+              margin="normal"
+              required
+            />
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              sx={{ mt: 3, mb: 2 }}
+              disabled={loading}
+            >
+              {loading ? <CircularProgress size={24} /> : 'Giriş Yap'}
+            </Button>
+
+            <Box sx={{ mt: 3, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary">
+                Hesabınız yok mu?{' '}
+                <Button
+                  color="primary"
+                  onClick={() => navigate('/register')}
+                  sx={{ textTransform: 'none' }}
+                >
+                  Kayıt Ol
+                </Button>
+              </Typography>
+            </Box>
+          </Box>
+        </Paper>
+      </Container>
     </Box>
   );
 };
