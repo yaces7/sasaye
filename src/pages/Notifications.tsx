@@ -107,31 +107,64 @@ const Notifications = () => {
   }, [currentUser]);
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: 2 }}>
-        <Typography variant="h5" gutterBottom sx={{ px: 2, pt: 2 }}>
-          Bildirimler
-        </Typography>
-        
-        <List sx={{ width: '100%', bgcolor: 'background.paper' }}>
-          {notifications.length === 0 ? (
-            <ListItem>
-              <ListItemText
-                primary="Henüz bildiriminiz yok"
-                secondary="Yeni bildirimler burada görünecek"
-              />
-            </ListItem>
-          ) : (
-            notifications.map((notification) => (
-              <NotificationItem
-                key={notification.id}
-                notification={notification}
-              />
-            ))
-          )}
-        </List>
-      </Paper>
-    </Container>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        width: '100vw',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: 'background.default',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        overflowY: 'auto'
+      }}
+    >
+      <Container maxWidth="md" sx={{ my: 4 }}>
+        <Paper 
+          elevation={3}
+          sx={{ 
+            p: 4,
+            borderRadius: 2,
+            bgcolor: 'background.paper',
+            width: '100%'
+          }}
+        >
+          <Typography variant="h4" gutterBottom align="center" sx={{ mb: 4 }}>
+            Bildirimler
+          </Typography>
+          
+          <List sx={{ width: '100%' }}>
+            {notifications.length === 0 ? (
+              <ListItem>
+                <ListItemText
+                  primary={
+                    <Typography variant="h6" align="center">
+                      Henüz bildiriminiz yok
+                    </Typography>
+                  }
+                  secondary={
+                    <Typography variant="body2" align="center" color="text.secondary">
+                      Yeni bildirimler burada görünecek
+                    </Typography>
+                  }
+                />
+              </ListItem>
+            ) : (
+              notifications.map((notification) => (
+                <NotificationItem
+                  key={notification.id}
+                  notification={notification}
+                />
+              ))
+            )}
+          </List>
+        </Paper>
+      </Container>
+    </Box>
   );
 };
 
