@@ -77,16 +77,22 @@ export const createChat = async (userId: string, receiverId: string): Promise<st
       }
     };
 
+    // Önce sohbeti oluştur
     await setDoc(chatRef, newChat);
 
-    // Her iki kullanıcının sohbet listesini güncelle
+    // Sonra kullanıcıların sohbet listelerini güncelle
     const batch = writeBatch(db);
-    batch.update(doc(db, 'users', userId), {
+    
+    // Gönderen kullanıcı için
+    batch.set(doc(db, 'users', userId), {
       chats: arrayUnion(chatRef.id)
-    });
-    batch.update(doc(db, 'users', receiverId), {
+    }, { merge: true });
+    
+    // Alıcı kullanıcı için
+    batch.set(doc(db, 'users', receiverId), {
       chats: arrayUnion(chatRef.id)
-    });
+    }, { merge: true });
+
     await batch.commit();
 
     return chatRef.id;
