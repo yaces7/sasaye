@@ -1,7 +1,6 @@
 import {
   collection,
   doc,
-  setDoc,
   getDoc,
   getDocs,
   query,
@@ -10,11 +9,11 @@ import {
   onSnapshot,
   serverTimestamp,
   updateDoc,
-  arrayUnion,
   Timestamp,
   writeBatch,
   increment,
-  limit
+  limit,
+  addDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { createNotification } from './notificationService';
@@ -35,65 +34,45 @@ export interface Chat {
   participantNames: { [key: string]: string };
   lastMessage?: string;
   lastMessageTime?: Timestamp;
-  unreadCount: { [key: string]: number };
+  unreadCounts: { [key: string]: number };
 }
 
 // Yeni sohbet oluştur
-export const createChat = async (userId: string, receiverId: string): Promise<string> => {
+export const createChat = async (currentUserId: string, otherUserId: string): Promise<string> => {
   try {
     // Mevcut sohbeti kontrol et
-    const existingChat = await findExistingChat(userId, receiverId);
+    const existingChat = await findExistingChat(currentUserId, otherUserId);
     if (existingChat) {
       return existingChat.id;
     }
 
-    // Kullanıcı bilgilerini al
-    const [senderDoc, receiverDoc] = await Promise.all([
-      getDoc(doc(db, 'users', userId)),
-      getDoc(doc(db, 'users', receiverId))
-    ]);
+    // Her iki kullanıcının bilgilerini al
+    const currentUserDoc = await getDoc(doc(db, 'users', currentUserId));
+    const otherUserDoc = await getDoc(doc(db, 'users', otherUserId));
 
-    if (!senderDoc.exists() || !receiverDoc.exists()) {
+    if (!currentUserDoc.exists() || !otherUserDoc.exists()) {
       throw new Error('Kullanıcı bulunamadı');
     }
 
-    const sender = senderDoc.data();
-    const receiver = receiverDoc.data();
+    const currentUserData = currentUserDoc.data();
+    const otherUserData = otherUserDoc.data();
 
-    // Yeni sohbet oluştur
-    const chatRef = doc(collection(db, 'chats'));
-    const newChat: Chat = {
-      id: chatRef.id,
-      participants: [userId, receiverId],
-      participantNames: {
-        [userId]: sender.username || sender.displayName,
-        [receiverId]: receiver.username || receiver.displayName
-      },
-      lastMessage: '',
-      lastMessageTime: Timestamp.now(),
-      unreadCount: {
-        [userId]: 0,
-        [receiverId]: 0
-      }
+    // Sohbet isimlerini ayarla - her kullanıcı karşısındakinin ismini görecek
+    const participantNames = {
+      [currentUserId]: otherUserData.name || 'İsimsiz Kullanıcı',
+      [otherUserId]: currentUserData.name || 'İsimsiz Kullanıcı'
     };
 
-    // Önce sohbeti oluştur
-    await setDoc(chatRef, newChat);
-
-    // Sonra kullanıcıların sohbet listelerini güncelle
-    const batch = writeBatch(db);
-    
-    // Gönderen kullanıcı için
-    batch.set(doc(db, 'users', userId), {
-      chats: arrayUnion(chatRef.id)
-    }, { merge: true });
-    
-    // Alıcı kullanıcı için
-    batch.set(doc(db, 'users', receiverId), {
-      chats: arrayUnion(chatRef.id)
-    }, { merge: true });
-
-    await batch.commit();
+    // Yeni sohbet oluştur
+    const chatRef = await addDoc(collection(db, 'chats'), {
+      participants: [currentUserId, otherUserId],
+      participantNames,
+      unreadCounts: {
+        [currentUserId]: 0,
+        [otherUserId]: 0
+      },
+      createdAt: serverTimestamp()
+    });
 
     return chatRef.id;
   } catch (error) {
@@ -126,7 +105,7 @@ export const sendMessage = async (chatId: string, senderId: string, receiverId: 
     batch.update(chatRef, {
       lastMessage: text,
       lastMessageTime: Timestamp.now(),
-      [`unreadCount.${receiverId}`]: increment(1)
+      [`unreadCounts.${receiverId}`]: increment(1)
     });
 
     await batch.commit();
@@ -136,7 +115,7 @@ export const sendMessage = async (chatId: string, senderId: string, receiverId: 
       userId: receiverId,
       type: 'message',
       title: 'Yeni Mesaj',
-      body: text.length > 50 ? text.substring(0, 47) + '...' : text,
+      message: text.length > 50 ? text.substring(0, 47) + '...' : text,
       data: { chatId }
     });
   } catch (error) {
@@ -199,7 +178,7 @@ export const markMessagesAsRead = async (chatId: string, userId: string): Promis
   try {
     const chatRef = doc(db, 'chats', chatId);
     await updateDoc(chatRef, {
-      [`unreadCount.${userId}`]: 0
+      [`unreadCounts.${userId}`]: 0
     });
 
     const q = query(

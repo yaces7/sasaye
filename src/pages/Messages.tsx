@@ -42,6 +42,81 @@ import {
 } from '../backend/services/messageService';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
+import { Timestamp } from 'firebase/firestore';
+
+interface ChatListItemProps {
+  chat: Chat;
+  currentUserId: string;
+  selected: boolean;
+  onClick: () => void;
+}
+
+// Sohbet listesi öğesi
+const ChatListItem = ({ chat, currentUserId, selected, onClick }: ChatListItemProps) => {
+  // Karşıdaki kullanıcının ismini al
+  const otherUserName = chat.participantNames[currentUserId];
+  const unreadCount = chat.unreadCounts[currentUserId] || 0;
+
+  return (
+    <ListItemButton 
+      selected={selected} 
+      onClick={onClick}
+      sx={{ 
+        display: 'flex', 
+        alignItems: 'center',
+        padding: 2,
+        borderBottom: '1px solid',
+        borderColor: 'divider'
+      }}
+    >
+      <ListItemAvatar>
+        <Avatar>{otherUserName[0]}</Avatar>
+      </ListItemAvatar>
+      <ListItemText 
+        primary={otherUserName}
+        secondary={chat.lastMessage || 'Yeni sohbet'}
+        primaryTypographyProps={{ fontWeight: unreadCount > 0 ? 'bold' : 'normal' }}
+        secondaryTypographyProps={{ 
+          color: unreadCount > 0 ? 'text.primary' : 'text.secondary',
+          fontWeight: unreadCount > 0 ? 'medium' : 'normal'
+        }}
+      />
+      {unreadCount > 0 && (
+        <Badge 
+          badgeContent={unreadCount} 
+          color="primary"
+          sx={{ marginLeft: 1 }}
+        />
+      )}
+    </ListItemButton>
+  );
+};
+
+// Mesaj animasyonu için stil
+const messageAnimation = `
+@keyframes foldAndFly {
+  0% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  20% {
+    transform: scale(0.8) rotate(15deg);
+  }
+  40% {
+    transform: scale(0.6) rotate(-15deg) translateX(0);
+  }
+  60% {
+    transform: scale(0.4) rotate(45deg) translateX(-100px) translateY(-50px);
+  }
+  80% {
+    transform: scale(0.2) rotate(180deg) translateX(-200px) translateY(-100px);
+  }
+  100% {
+    transform: scale(0) rotate(360deg) translateX(-300px) translateY(-150px);
+    opacity: 0;
+  }
+}
+`;
 
 const Messages = () => {
   const { currentUser } = useAuth();
@@ -98,6 +173,22 @@ const Messages = () => {
       const receiverId = selectedChat.participants.find(id => id !== currentUser.uid);
       if (!receiverId) return;
 
+      // Geçici mesaj oluştur
+      const tempMessage: Message = {
+        id: 'temp-' + Date.now(),
+        chatId: selectedChat.id,
+        senderId: currentUser.uid,
+        receiverId,
+        text: messageText.trim(),
+        timestamp: Timestamp.now(),
+        isRead: false
+      };
+
+      // Geçici mesajı ekle
+      setMessages(prev => [...prev, tempMessage]);
+      scrollToBottom();
+
+      // Mesajı gönder
       await sendMessage(selectedChat.id, currentUser.uid, receiverId, messageText.trim());
       setMessageText('');
     } catch (error) {
@@ -230,41 +321,15 @@ const Messages = () => {
                   return true;
                 })
                 .map((chat) => (
-                  <React.Fragment key={chat.id}>
-                    <ListItemButton
+                  currentUser && (
+                    <ChatListItem
+                      key={chat.id}
+                      chat={chat}
+                      currentUserId={currentUser.uid}
                       selected={selectedChat?.id === chat.id}
                       onClick={() => handleSelectChat(chat)}
-                    >
-                      <ListItemAvatar>
-                        <Badge
-                          badgeContent={chat.unreadCount[currentUser?.uid || ''] || 0}
-                          color="primary"
-                        >
-                          <Avatar>
-                            {chat.participants.find(id => id !== currentUser?.uid)?.[0]}
-                          </Avatar>
-                        </Badge>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={chat.participants.find(id => id !== currentUser?.uid)}
-                        secondary={
-                          <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            noWrap
-                          >
-                            {chat.lastMessage || 'Yeni sohbet'}
-                            {chat.lastMessageTime && (
-                              <span style={{ float: 'right' }}>
-                                {formatMessageTime(chat.lastMessageTime)}
-                              </span>
-                            )}
-                          </Typography>
-                        }
-                      />
-                    </ListItemButton>
-                    <Divider />
-                  </React.Fragment>
+                    />
+                  )
                 ))}
             </List>
           </Box>
@@ -273,6 +338,7 @@ const Messages = () => {
           <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
             {selectedChat ? (
               <>
+                <style>{messageAnimation}</style>
                 {/* Mesaj Listesi */}
                 <Box
                   sx={{
@@ -289,7 +355,8 @@ const Messages = () => {
                       sx={{
                         display: 'flex',
                         justifyContent: message.senderId === currentUser?.uid ? 'flex-end' : 'flex-start',
-                        mb: 1
+                        mb: 1,
+                        animation: message.id.startsWith('temp-') ? 'foldAndFly 1s forwards' : 'none'
                       }}
                     >
                       <Paper
@@ -297,12 +364,19 @@ const Messages = () => {
                           p: 1,
                           maxWidth: '70%',
                           bgcolor: message.senderId === currentUser?.uid ? 'primary.main' : 'background.paper',
-                          color: message.senderId === currentUser?.uid ? 'primary.contrastText' : 'text.primary'
+                          color: message.senderId === currentUser?.uid ? 'primary.contrastText' : 'text.primary',
+                          transform: message.id.startsWith('temp-') ? 'perspective(1000px)' : 'none',
+                          transformOrigin: 'right bottom'
                         }}
                       >
                         <Typography variant="body1">{message.text}</Typography>
                         <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                          {format(message.timestamp.toDate(), 'HH:mm')}
+                          {format(
+                            typeof message.timestamp === 'object' && 'toDate' in message.timestamp
+                              ? message.timestamp.toDate()
+                              : message.timestamp,
+                            'HH:mm'
+                          )}
                         </Typography>
                       </Paper>
                     </Box>

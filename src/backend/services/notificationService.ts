@@ -24,6 +24,7 @@ export interface Notification {
     groupId?: string;
     senderId?: string;
     postId?: string;
+    chatId?: string;
   };
 }
 
