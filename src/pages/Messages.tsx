@@ -30,17 +30,14 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  createChat,
+  createOrGetChat,
   sendMessage,
   subscribeToMessages,
-  subscribeToChats,
+  getUserChats,
   markMessagesAsRead,
   Message,
-  Chat,
-  getUserByName,
-  getChatById,
-  getChatMessages
-} from '../backend/services/messageService';
+  Chat
+} from '../backend/services/chatService';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 
@@ -51,11 +48,9 @@ interface ChatListItemProps {
   onClick: () => void;
 }
 
-// Sohbet listesi öğesi
-const ChatListItem = ({ chat, currentUserId, selected, onClick }: ChatListItemProps) => {
-  // Karşıdaki kullanıcının ismini al
-  const otherUserName = chat.participantNames[currentUserId];
-  const unreadCount = chat.unreadCounts[currentUserId] || 0;
+const ChatListItem: React.FC<ChatListItemProps> = ({ chat, currentUserId, selected, onClick }) => {
+  const otherUserId = chat.participants.find(id => id !== currentUserId) || '';
+  const lastMessage = chat.lastMessage?.text || 'Yeni sohbet';
 
   return (
     <ListItemButton 
@@ -70,202 +65,106 @@ const ChatListItem = ({ chat, currentUserId, selected, onClick }: ChatListItemPr
       }}
     >
       <ListItemAvatar>
-        <Avatar>{otherUserName[0]}</Avatar>
+        <Avatar>{otherUserId[0]}</Avatar>
       </ListItemAvatar>
       <ListItemText 
-        primary={otherUserName}
-        secondary={chat.lastMessage || 'Yeni sohbet'}
-        primaryTypographyProps={{ fontWeight: unreadCount > 0 ? 'bold' : 'normal' }}
-        secondaryTypographyProps={{ 
-          color: unreadCount > 0 ? 'text.primary' : 'text.secondary',
-          fontWeight: unreadCount > 0 ? 'medium' : 'normal'
-        }}
+        primary={otherUserId}
+        secondary={lastMessage}
       />
-      {unreadCount > 0 && (
-        <Badge 
-          badgeContent={unreadCount} 
-          color="primary"
-          sx={{ marginLeft: 1 }}
-        />
-      )}
     </ListItemButton>
   );
 };
 
-// Mesaj animasyonu için stil
-const messageAnimation = `
-@keyframes foldAndFly {
-  0% {
-    transform: scale(1) rotate(0deg);
-    opacity: 1;
-  }
-  20% {
-    transform: scale(0.8) rotate(15deg);
-  }
-  40% {
-    transform: scale(0.6) rotate(-15deg) translateX(0);
-  }
-  60% {
-    transform: scale(0.4) rotate(45deg) translateX(-100px) translateY(-50px);
-  }
-  80% {
-    transform: scale(0.2) rotate(180deg) translateX(-200px) translateY(-100px);
-  }
-  100% {
-    transform: scale(0) rotate(360deg) translateX(-300px) translateY(-150px);
-    opacity: 0;
-  }
-}
-`;
-
-const Messages = () => {
+const Messages: React.FC = () => {
   const { currentUser } = useAuth();
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(true);
   const [messageText, setMessageText] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [newChatUserId, setNewChatUserId] = useState('');
   const [isNewChatDialogOpen, setIsNewChatDialogOpen] = useState(false);
-  const [newChatUsername, setNewChatUsername] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [searchError, setSearchError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [sending, setSending] = useState(false);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  // Sohbetleri dinle
   useEffect(() => {
     if (!currentUser) return;
-    let unsubscribeChats: () => void;
-    let unsubscribeMessages: () => void;
 
-    // Sohbetleri dinle
-    unsubscribeChats = subscribeToChats(currentUser.uid, (updatedChats) => {
-      setChats(updatedChats);
-      
-      // Eğer seçili sohbet yoksa ve sohbetler varsa ilk sohbeti seç
-      if (!selectedChat && updatedChats.length > 0) {
-        const firstChat = updatedChats[0];
-        setSelectedChat(firstChat);
-        
-        // İlk sohbetin mesajlarını dinle
-        unsubscribeMessages = subscribeToMessages(firstChat.id, (newMessages) => {
-          setMessages(newMessages);
-          scrollToBottom();
-        });
+    const loadChats = async () => {
+      try {
+        const userChats = await getUserChats(currentUser.uid);
+        setChats(userChats);
+        if (userChats.length > 0 && !selectedChat) {
+          setSelectedChat(userChats[0]);
+        }
+        setLoading(false);
+      } catch (error) {
+        console.error('Sohbetler yüklenirken hata:', error);
+        setLoading(false);
       }
-    });
-
-    return () => {
-      if (unsubscribeChats) unsubscribeChats();
-      if (unsubscribeMessages) unsubscribeMessages();
     };
-  }, [currentUser]);
 
-  // Seçili sohbetin mesajlarını dinle
+    loadChats();
+  }, [currentUser, selectedChat]);
+
   useEffect(() => {
-    if (!selectedChat || !currentUser) return;
+    if (!currentUser || !selectedChat) return;
 
-    // Mesajları okundu olarak işaretle
-    markMessagesAsRead(selectedChat.id, currentUser.uid);
-
-    // Mesajları dinle
-    const unsubscribe = subscribeToMessages(selectedChat.id, (newMessages) => {
-      setMessages(newMessages);
-      scrollToBottom();
-    });
+    const unsubscribe = subscribeToMessages(
+      currentUser.uid,
+      selectedChat.participants.find(id => id !== currentUser.uid) || '',
+      (newMessages) => {
+        setMessages(newMessages);
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+    );
 
     return () => unsubscribe();
   }, [selectedChat, currentUser]);
 
-  // Otomatik kaydırma
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  // Mesaj gönder
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageText.trim() || !selectedChat || !currentUser || sending) return;
+    if (!messageText.trim() || !selectedChat || !currentUser) return;
 
     try {
-      setSending(true);
-      const receiverId = selectedChat.participants.find(id => id !== currentUser.uid);
-      if (!receiverId) return;
+      const otherUserId = selectedChat.participants.find(id => id !== currentUser.uid);
+      if (!otherUserId) return;
 
-      // Mesajı gönder
-      await sendMessage(selectedChat.id, currentUser.uid, receiverId, messageText.trim());
+      await sendMessage(otherUserId, currentUser.uid, messageText.trim());
       setMessageText('');
-      
-      // Mesajları yeniden yükle
-      const updatedMessages = await getChatMessages(selectedChat.id);
-      setMessages(updatedMessages);
-      scrollToBottom();
     } catch (error) {
       console.error('Mesaj gönderme hatası:', error);
-    } finally {
-      setSending(false);
     }
   };
 
-  // Sohbet seç
-  const handleSelectChat = async (chat: Chat) => {
-    setSelectedChat(chat);
-    if (currentUser) {
-      await markMessagesAsRead(chat.id, currentUser.uid);
-    }
-  };
-
-  // Mesaj zamanını formatla
-  const formatMessageTime = (timestamp: any) => {
-    if (!timestamp) return '';
-    return format(timestamp.toDate(), 'HH:mm', { locale: tr });
-  };
-
-  // Kullanıcı ara
-  const handleUserSearch = async (searchTerm: string) => {
-    setNewChatUsername(searchTerm);
-    if (!searchTerm.trim()) {
-      setSearchResults([]);
-      return;
-    }
+  const handleCreateNewChat = async () => {
+    if (!currentUser || !newChatUserId.trim()) return;
 
     try {
-      const results = await getUserByName(searchTerm);
-      setSearchResults(results);
-      setSearchError(results.length === 0 ? 'Kullanıcı bulunamadı' : null);
-    } catch (error) {
-      setSearchError('Arama sırasında bir hata oluştu');
-      setSearchResults([]);
-    }
-  };
-
-  // Yeni sohbet oluştur
-  const handleCreateNewChat = async (receiverId: string) => {
-    if (!currentUser) return;
-
-    try {
-      setLoading(true);
-      const chatId = await createChat(currentUser.uid, receiverId);
-      const chat = await getChatById(chatId);
-      if (chat) {
-        setSelectedChat(chat);
-      }
+      const chatId = await createOrGetChat(currentUser.uid, newChatUserId.trim());
+      const newChat = chats.find(chat => chat.id === chatId) || {
+        id: chatId,
+        participants: [currentUser.uid, newChatUserId.trim()],
+        createdAt: new Date()
+      };
+      
+      setSelectedChat(newChat as Chat);
       setIsNewChatDialogOpen(false);
-      setNewChatUsername('');
-      setSearchResults([]);
+      setNewChatUserId('');
     } catch (error) {
-      console.error('Sohbet oluşturma hatası:', error);
-    } finally {
-      setLoading(false);
+      console.error('Yeni sohbet oluşturma hatası:', error);
     }
   };
 
   if (!currentUser) {
     return (
-      <Box sx={{ p: 3 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh' 
+      }}>
         <Typography>Lütfen giriş yapın</Typography>
       </Box>
     );
@@ -273,160 +172,114 @@ const Messages = () => {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh' 
+      }}>
         <CircularProgress />
       </Box>
     );
   }
 
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        width: '100vw',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        bgcolor: 'background.default',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        overflowY: 'auto'
-      }}
-    >
-      <Container maxWidth="lg" sx={{ my: { xs: 2, sm: 4 } }}>
-        <Paper
-          elevation={3}
-          sx={{
+    <Box sx={{ 
+      minHeight: '100vh',
+      bgcolor: 'background.default',
+      pt: 2
+    }}>
+      <Container maxWidth="lg">
+        <Paper sx={{ 
+          display: 'flex',
+          height: 'calc(100vh - 100px)',
+          overflow: 'hidden',
+          borderRadius: 2
+        }}>
+          {/* Sol panel - Sohbet listesi */}
+          <Box sx={{ 
+            width: 300,
+            borderRight: 1,
+            borderColor: 'divider',
             display: 'flex',
-            height: '80vh',
-            borderRadius: { xs: isMobile ? 0 : 2, sm: 2 },
-            overflow: 'hidden',
-            boxShadow: theme => `0 8px 24px ${theme.palette.primary.light}25`
-          }}
-        >
-          {/* Sol Panel - Sohbet Listesi */}
-          <Box
-            sx={{
-              width: 320,
-              borderRight: 1,
+            flexDirection: 'column'
+          }}>
+            <Box sx={{ 
+              p: 2,
+              borderBottom: 1,
               borderColor: 'divider',
-              display: { xs: selectedChat ? 'none' : 'block', sm: 'block' }
-            }}
-          >
-            <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <TextField
-                size="small"
-                fullWidth
-                placeholder="Sohbet ara..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon fontSize="small" />
-                    </InputAdornment>
-                  )
-                }}
-                sx={{ flex: 1 }}
-              />
-              <Tooltip title="Yeni Sohbet">
-                <IconButton
-                  color="primary"
-                  onClick={() => setIsNewChatDialogOpen(true)}
-                  sx={{ 
-                    width: 35,
-                    height: 35,
-                    bgcolor: 'primary.main',
-                    color: 'white',
-                    '&:hover': {
-                      bgcolor: 'primary.dark'
-                    }
-                  }}
-                >
-                  <AddIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <Typography variant="h6">Mesajlar</Typography>
+              <IconButton onClick={() => setIsNewChatDialogOpen(true)}>
+                <AddIcon />
+              </IconButton>
             </Box>
-
-            <List sx={{ flexGrow: 1, overflow: 'auto' }}>
-              {chats
-                .filter(chat => {
-                  if (!searchQuery) return true;
-                  // Burada sohbet araması yapılabilir
-                  return true;
-                })
-                .map((chat) => (
-                  currentUser && (
-                    <ChatListItem
-                      key={chat.id}
-                      chat={chat}
-                      currentUserId={currentUser.uid}
-                      selected={selectedChat?.id === chat.id}
-                      onClick={() => handleSelectChat(chat)}
-                    />
-                  )
-                ))}
+            <List sx={{ flex: 1, overflow: 'auto' }}>
+              {chats.map((chat) => (
+                <ChatListItem
+                  key={chat.id}
+                  chat={chat}
+                  currentUserId={currentUser.uid}
+                  selected={selectedChat?.id === chat.id}
+                  onClick={() => setSelectedChat(chat)}
+                />
+              ))}
             </List>
           </Box>
 
-          {/* Sağ Panel - Mesajlaşma Alanı */}
-          <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+          {/* Sağ panel - Mesajlaşma alanı */}
+          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             {selectedChat ? (
               <>
-                <style>{messageAnimation}</style>
-                {/* Mesaj Listesi */}
-                <Box
-                  sx={{
-                    flexGrow: 1,
-                    overflow: 'auto',
-                    p: 2,
-                    display: 'flex',
-                    flexDirection: 'column'
-                  }}
-                >
+                <Box sx={{ 
+                  p: 2,
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}>
+                  <Avatar sx={{ mr: 2 }}>
+                    {selectedChat.participants.find(id => id !== currentUser.uid)?.[0]}
+                  </Avatar>
+                  <Typography>
+                    {selectedChat.participants.find(id => id !== currentUser.uid)}
+                  </Typography>
+                </Box>
+                <Box sx={{ 
+                  flex: 1,
+                  overflow: 'auto',
+                  p: 2,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 1
+                }}>
                   {messages.map((message) => (
                     <Box
                       key={message.id}
                       sx={{
-                        display: 'flex',
-                        justifyContent: message.senderId === currentUser?.uid ? 'flex-end' : 'flex-start',
-                        mb: 1,
-                        animation: message.id.startsWith('temp-') ? 'foldAndFly 1s forwards' : 'none'
+                        alignSelf: message.senderId === currentUser.uid ? 'flex-end' : 'flex-start',
+                        maxWidth: '70%',
+                        bgcolor: message.senderId === currentUser.uid ? 'primary.main' : 'grey.100',
+                        color: message.senderId === currentUser.uid ? 'white' : 'text.primary',
+                        p: 2,
+                        borderRadius: 2
                       }}
                     >
-                      <Paper
-                        sx={{
-                          p: 1,
-                          maxWidth: '70%',
-                          bgcolor: message.senderId === currentUser?.uid ? 'primary.main' : 'background.paper',
-                          color: message.senderId === currentUser?.uid ? 'primary.contrastText' : 'text.primary',
-                          transform: message.id.startsWith('temp-') ? 'perspective(1000px)' : 'none',
-                          transformOrigin: 'right bottom'
-                        }}
-                      >
-                        <Typography variant="body1">{message.text}</Typography>
-                        <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                          {format(
-                            typeof message.timestamp === 'object' && 'toDate' in message.timestamp
-                              ? message.timestamp.toDate()
-                              : message.timestamp,
-                            'HH:mm'
-                          )}
-                        </Typography>
-                      </Paper>
+                      <Typography>{message.text}</Typography>
+                      <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                        {message.timestamp && format(message.timestamp.toDate(), 'HH:mm', { locale: tr })}
+                      </Typography>
                     </Box>
                   ))}
                   <div ref={messagesEndRef} />
                 </Box>
-
-                {/* Mesaj Gönderme Formu */}
-                <Paper
-                  component="form"
+                <Paper 
+                  component="form" 
                   onSubmit={handleSendMessage}
-                  sx={{
+                  sx={{ 
                     p: 2,
                     display: 'flex',
                     gap: 1,
@@ -436,105 +289,57 @@ const Messages = () => {
                 >
                   <TextField
                     fullWidth
-                    size="small"
                     placeholder="Mesajınızı yazın..."
                     value={messageText}
                     onChange={(e) => setMessageText(e.target.value)}
-                    disabled={sending}
+                    size="small"
                   />
-                  <IconButton 
-                    type="submit" 
-                    color="primary" 
-                    disabled={!messageText.trim() || sending}
-                  >
-                    {sending ? <CircularProgress size={24} /> : <SendIcon />}
+                  <IconButton type="submit" color="primary" disabled={!messageText.trim()}>
+                    <SendIcon />
                   </IconButton>
                 </Paper>
               </>
             ) : (
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: '100%'
-                }}
-              >
-                <Typography variant="h6" color="text.secondary">
+              <Box sx={{ 
+                flex: 1,
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <Typography color="text.secondary">
                   Sohbet seçin veya yeni bir sohbet başlatın
                 </Typography>
               </Box>
             )}
           </Box>
         </Paper>
-
-        {/* Yeni Sohbet Dialog */}
-        <Dialog
-          open={isNewChatDialogOpen}
-          onClose={() => {
-            setIsNewChatDialogOpen(false);
-            setNewChatUsername('');
-            setSearchResults([]);
-            setSearchError(null);
-          }}
-          maxWidth="sm"
-          fullWidth
-        >
-          <DialogTitle>Yeni Sohbet</DialogTitle>
-          <DialogContent>
-            <TextField
-              fullWidth
-              label="Kullanıcı Adı veya ID"
-              value={newChatUsername}
-              onChange={(e) => handleUserSearch(e.target.value)}
-              margin="dense"
-              autoFocus
-              helperText={searchError}
-              error={!!searchError}
-              InputProps={{
-                endAdornment: loading && (
-                  <InputAdornment position="end">
-                    <CircularProgress size={20} />
-                  </InputAdornment>
-                )
-              }}
-            />
-            {searchResults.length > 0 && (
-              <List sx={{ mt: 2 }}>
-                {searchResults.map((user) => (
-                  <ListItemButton
-                    key={user.id}
-                    onClick={() => handleCreateNewChat(user.id)}
-                    disabled={loading}
-                  >
-                    <ListItemAvatar>
-                      <Avatar src={user.avatar}>
-                        {user.username?.[0]?.toUpperCase()}
-                      </Avatar>
-                    </ListItemAvatar>
-                    <ListItemText
-                      primary={user.username}
-                      secondary={`ID: ${user.customId}`}
-                    />
-                  </ListItemButton>
-                ))}
-              </List>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button 
-              onClick={() => {
-                setIsNewChatDialogOpen(false);
-                setNewChatUsername('');
-                setSearchResults([]);
-                setSearchError(null);
-              }}
-            >
-              İptal
-            </Button>
-          </DialogActions>
-        </Dialog>
       </Container>
+
+      {/* Yeni sohbet başlatma dialogu */}
+      <Dialog 
+        open={isNewChatDialogOpen} 
+        onClose={() => setIsNewChatDialogOpen(false)}
+      >
+        <DialogTitle>Yeni Sohbet</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Kullanıcı ID"
+            fullWidth
+            value={newChatUserId}
+            onChange={(e) => setNewChatUserId(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsNewChatDialogOpen(false)}>
+            İptal
+          </Button>
+          <Button onClick={handleCreateNewChat} variant="contained">
+            Başlat
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
