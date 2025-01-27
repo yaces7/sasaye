@@ -217,4 +217,56 @@ export const generateCustomId = async (): Promise<string> => {
     customId = Math.floor(Math.random() * (max - min + 1) + min).toString();
   } while (!(await isCustomIdUnique(customId)));
   return customId;
+};
+
+// Gruba katıl
+export const joinGroup = async (groupId: string, userId: string): Promise<void> => {
+  try {
+    const groupDoc = await getDoc(doc(db, 'groups', groupId));
+    if (!groupDoc.exists()) throw new Error('Grup bulunamadı');
+
+    const memberRef = doc(db, 'groupMembers', `${groupId}_${userId}`);
+    const memberDoc = await getDoc(memberRef);
+    if (memberDoc.exists()) throw new Error('Zaten gruptasınız');
+
+    await setDoc(memberRef, {
+      userId,
+      groupId,
+      role: 'member',
+      joinedAt: new Date()
+    });
+
+    await updateDoc(doc(db, 'groups', groupId), {
+      memberCount: (groupDoc.data() as Group).memberCount + 1,
+      updatedAt: new Date()
+    });
+  } catch (error) {
+    console.error('Gruba katılma hatası:', error);
+    throw error;
+  }
+};
+
+// Gruptan ayrıl
+export const leaveGroup = async (groupId: string, userId: string): Promise<void> => {
+  try {
+    const memberRef = doc(db, 'groupMembers', `${groupId}_${userId}`);
+    const memberDoc = await getDoc(memberRef);
+    if (!memberDoc.exists()) throw new Error('Grupta üye değilsiniz');
+
+    const memberData = memberDoc.data() as GroupMember;
+    if (memberData.role === 'owner') throw new Error('Grup sahibi gruptan ayrılamaz');
+
+    await deleteDoc(memberRef);
+
+    const groupDoc = await getDoc(doc(db, 'groups', groupId));
+    if (groupDoc.exists()) {
+      await updateDoc(doc(db, 'groups', groupId), {
+        memberCount: (groupDoc.data() as Group).memberCount - 1,
+        updatedAt: new Date()
+      });
+    }
+  } catch (error) {
+    console.error('Gruptan ayrılma hatası:', error);
+    throw error;
+  }
 }; 
