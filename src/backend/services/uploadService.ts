@@ -1,6 +1,7 @@
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../firebase';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 // Cloudinary yapılandırması
 const CLOUDINARY_UPLOAD_PRESET = 'b65889d0-f518-473e-a533-7c9ae8445b14'; // Cloudinary'den alacağınız preset
@@ -16,7 +17,7 @@ const MAX_VIDEO_DURATION = 60; // saniye cinsinden maksimum video süresi
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
 
-interface UploadResult {
+export interface UploadResult {
   url: string;
   path: string;
   publicId: string;
@@ -59,7 +60,7 @@ export const uploadImage = async (file: File): Promise<UploadResult> => {
     return {
       url: response.data.secure_url,
       path: response.data.public_id,
-      publicId: response.data.public_id
+      publicId: response.data.public_id,
     };
   } catch (error: any) {
     throw new Error('Resim yükleme hatası: ' + error.message);
@@ -68,37 +69,41 @@ export const uploadImage = async (file: File): Promise<UploadResult> => {
 
 // Video yükleme
 export const uploadVideo = async (file: File): Promise<UploadResult> => {
-  // Dosya tipi kontrolü
-  if (!SUPPORTED_VIDEO_TYPES.includes(file.type)) {
-    throw new Error('Desteklenmeyen dosya tipi. Lütfen MP4 formatında bir video yükleyin.');
-  }
-
-  // Dosya boyutu kontrolü
+  // Video boyut kontrolü (100MB)
   if (file.size > MAX_VIDEO_SIZE) {
-    throw new Error('Dosya boyutu çok büyük. Maksimum 100MB yükleyebilirsiniz.');
+    toast.error('Video boyutu 100MB\'dan küçük olmalıdır');
+    throw new Error('Video boyutu çok büyük');
   }
 
-  // Video süresi kontrolü
-  const isValidDuration = await checkVideoDuration(file);
-  if (!isValidDuration) {
-    throw new Error('Video süresi çok uzun. Maksimum 60 saniye olabilir.');
+  // Video format kontrolü
+  const allowedTypes = ['video/mp4', 'video/webm', 'video/ogg'];
+  if (!allowedTypes.includes(file.type)) {
+    toast.error('Desteklenmeyen video formatı');
+    throw new Error('Desteklenmeyen video formatı');
   }
 
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-  formData.append('resource_type', 'video');
+  const path = `videos/${Date.now()}_${file.name}`;
+  return uploadFile(file, path);
+};
 
-  try {
-    const response = await axios.post(`${CLOUDINARY_API_URL}/video/upload`, formData);
-    return {
-      url: response.data.secure_url,
-      path: response.data.public_id,
-      publicId: response.data.public_id
-    };
-  } catch (error: any) {
-    throw new Error('Video yükleme hatası: ' + error.message);
+// Profil fotoğrafı yükleme için özel fonksiyon
+export const uploadProfilePhoto = async (file: File): Promise<UploadResult> => {
+  // Resim boyut kontrolü (5MB)
+  const MAX_PHOTO_SIZE = 5 * 1024 * 1024; // 5MB
+  if (file.size > MAX_PHOTO_SIZE) {
+    toast.error('Fotoğraf boyutu 5MB\'dan küçük olmalıdır');
+    throw new Error('Fotoğraf boyutu çok büyük');
   }
+
+  // Resim format kontrolü
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+  if (!allowedTypes.includes(file.type)) {
+    toast.error('Desteklenmeyen resim formatı');
+    throw new Error('Desteklenmeyen resim formatı');
+  }
+
+  const path = `profile_photos/${Date.now()}_${file.name}`;
+  return uploadFile(file, path);
 };
 
 // Dosya silme
@@ -160,24 +165,34 @@ export const getOptimizedVideoUrl = (
   return `${parts[0]}/upload/${qualityMap[quality]}/${parts[1]}`;
 };
 
-export const uploadFile = async (file: File, folder: string): Promise<UploadResult> => {
+export const uploadFile = async (file: File, path: string): Promise<UploadResult> => {
   try {
-    // Dosya adını benzersiz yap
-    const timestamp = Date.now();
-    const fileName = `${timestamp}_${file.name}`;
-    const path = `${folder}/${fileName}`;
-    
+    // Yükleme başladı bildirimi
+    const loadingToast = toast.loading('Dosya yükleniyor...');
+
     // Storage referansı oluştur
     const storageRef = ref(storage, path);
     
     // Dosyayı yükle
-    await uploadBytes(storageRef, file);
+    const snapshot = await uploadBytes(storageRef, file);
     
-    // Download URL'ini al
-    const url = await getDownloadURL(storageRef);
+    // Download URL al
+    const url = await getDownloadURL(snapshot.ref);
     
-    return { url, path, publicId: '' };
-  } catch (error: any) {
-    throw new Error('Dosya yükleme hatası: ' + error.message);
+    // Başarılı bildirimi
+    toast.success('Dosya başarıyla yüklendi!', {
+      id: loadingToast
+    });
+
+    return {
+      url,
+      path: snapshot.ref.fullPath,
+      publicId: snapshot.ref.fullPath.split('/').pop() || ''
+    };
+  } catch (error) {
+    console.error('Dosya yükleme hatası:', error);
+    // Hata bildirimi
+    toast.error('Dosya yüklenirken bir hata oluştu');
+    throw error;
   }
 }; 

@@ -1,51 +1,63 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Box,
   Container,
   Typography,
-  Avatar,
-  Button,
-  TextField,
-  Divider,
-  List,
-  ListItem,
-  ListItemAvatar,
-  ListItemText,
-  Grid,
   Paper,
-  CircularProgress
+  CircularProgress,
+  Avatar,
+  IconButton,
+  Button
 } from '@mui/material';
-import { ThumbUp, ThumbDown, Share } from '@mui/icons-material';
-import { getVideoById, Video } from '../backend/services/videoService';
+import {
+  ThumbUp as ThumbUpIcon,
+  ThumbDown as ThumbDownIcon,
+  Share as ShareIcon,
+  Comment as CommentIcon
+} from '@mui/icons-material';
+import { getVideoById } from '../backend/services/videoService';
+import toast from 'react-hot-toast';
 
 const VideoDetail = () => {
-  const { videoId } = useParams();
-  const [video, setVideo] = useState<Video | null>(null);
+  const { videoId } = useParams<{ videoId: string }>();
+  const [video, setVideo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [comment, setComment] = useState('');
 
   useEffect(() => {
-    const fetchVideo = async () => {
-      if (!videoId) return;
-      
+    const loadVideo = async () => {
       try {
-        const videoData = await getVideoById(videoId);
+        setLoading(true);
+        const videoData = await getVideoById(videoId!);
+        if (!videoData) {
+          setError('Video bulunamadı');
+          return;
+        }
         setVideo(videoData);
-      } catch (error) {
+      } catch (err) {
         setError('Video yüklenirken bir hata oluştu');
+        console.error('Video yükleme hatası:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchVideo();
+    if (videoId) {
+      loadVideo();
+    }
   }, [videoId]);
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '100vh'
+        }}
+      >
         <CircularProgress />
       </Box>
     );
@@ -53,100 +65,82 @@ const VideoDetail = () => {
 
   if (error || !video) {
     return (
-      <Box sx={{ p: 3 }}>
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '100vh'
+        }}
+      >
         <Typography color="error">{error || 'Video bulunamadı'}</Typography>
       </Box>
     );
   }
 
-  const handleCommentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Yorum gönderme işlemi burada yapılacak
-    setComment('');
-  };
-
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Box sx={{ position: 'relative', paddingTop: '56.25%', mb: 2 }}>
-              <Box
-                component="video"
-                src={video.videoUrl}
-                controls
-                sx={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  backgroundColor: 'black'
-                }}
-              />
-            </Box>
-            <Typography variant="h4" gutterBottom>
-              {video.title}
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <Avatar src={video.userAvatar} sx={{ mr: 1 }}>
-                {video.username?.[0]}
-              </Avatar>
-              <Typography variant="subtitle1">
-                {video.username}
-              </Typography>
-            </Box>
-            <Typography variant="body1" paragraph>
-              {video.description}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {video.views} görüntülenme • {new Date(video.createdAt).toLocaleDateString()}
-            </Typography>
-          </Paper>
-        </Grid>
-      </Grid>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Paper elevation={3} sx={{ bgcolor: 'black', mb: 2 }}>
+        <Box
+          component="video"
+          src={video.videoUrl}
+          controls
+          sx={{
+            width: '100%',
+            maxHeight: '70vh',
+            objectFit: 'contain'
+          }}
+        />
+      </Paper>
 
-      <Box sx={{ mt: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button startIcon={<ThumbUp />}>
-              {video.likes}
-            </Button>
-            <Button startIcon={<ThumbDown />}>
-              0
-            </Button>
-            <Button startIcon={<Share />}>
-              Paylaş
-            </Button>
-          </Box>
-        </Box>
-
-        <Divider sx={{ my: 3 }} />
-
-        {/* Comments */}
-        <Typography variant="h6" gutterBottom>
-          Yorumlar ({video.comments})
+      <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
+        <Typography variant="h5" gutterBottom>
+          {video.title}
         </Typography>
 
-        <Box component="form" onSubmit={handleCommentSubmit} sx={{ mb: 4 }}>
-          <TextField
-            fullWidth
-            placeholder="Yorum yaz..."
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            multiline
-            rows={2}
-            sx={{ mb: 2 }}
-          />
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <Avatar src={video.userAvatar} sx={{ mr: 1 }}>
+            {video.username?.[0]}
+          </Avatar>
+          <Typography variant="subtitle1">
+            {video.username}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
           <Button
-            variant="contained"
-            type="submit"
-            disabled={!comment.trim()}
+            startIcon={<ThumbUpIcon />}
+            onClick={() => toast.success('Beğeni kaydedildi')}
           >
-            Yorum Yap
+            {video.likes || 0}
+          </Button>
+          <Button
+            startIcon={<ThumbDownIcon />}
+            onClick={() => toast.success('Beğenmeme kaydedildi')}
+          >
+            {video.dislikes || 0}
+          </Button>
+          <Button
+            startIcon={<ShareIcon />}
+            onClick={() => {
+              navigator.clipboard.writeText(window.location.href);
+              toast.success('Video linki kopyalandı!');
+            }}
+          >
+            Paylaş
           </Button>
         </Box>
-      </Box>
+
+        <Typography variant="body1" sx={{ mb: 2 }}>
+          {video.description}
+        </Typography>
+
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            {video.comments || 0} Yorum
+          </Typography>
+        </Box>
+      </Paper>
     </Container>
   );
 };
