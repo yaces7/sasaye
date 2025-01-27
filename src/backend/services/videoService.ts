@@ -5,9 +5,9 @@ import { getAuth } from 'firebase/auth';
 
 // Cloudinary yapılandırması
 cloudinary.config({
-  cloud_name: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME,
-  api_key: import.meta.env.VITE_CLOUDINARY_API_KEY,
-  api_secret: import.meta.env.VITE_CLOUDINARY_API_SECRET
+  cloud_name: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dxsl9h1kw',
+  api_key: import.meta.env.VITE_CLOUDINARY_API_KEY || '972894172892977',
+  api_secret: import.meta.env.VITE_CLOUDINARY_API_SECRET || '0fRcJJ__u4bNOL6eVW4ryaeLph8'
 });
 
 export interface Video {
