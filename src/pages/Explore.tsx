@@ -345,8 +345,8 @@ const Explore = () => {
                   description: group.description,
                   memberCount: group.members?.length || 0,
                   image: group.image || '/default-group-image.png',
-                  isJoined: group.members?.includes(currentUser?.id || '') ?? false,
-                  isOwner: group.ownerId === currentUser?.id ?? false,
+                  isJoined: group.members?.includes(currentUser?.id || '') || false,
+                  isOwner: group.ownerId === currentUser?.id || false,
                   tags: group.tags || []
                 }} 
               />

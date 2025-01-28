@@ -12,32 +12,26 @@ import {
   ListItemAvatar,
   Avatar,
   CircularProgress,
-  Badge,
-  InputAdornment,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Button,
-  Tooltip,
-  useTheme,
-  useMediaQuery
-} from '@mui/material';
+  Button} from '@mui/material';
 import {
   Send as SendIcon,
-  Search as SearchIcon,
   Add as AddIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  createOrGetChat,
+  Message,
+  Chat,
+  createChat,
   sendMessage,
   subscribeToMessages,
-  getUserChats,
-  markMessagesAsRead,
-  Message,
-  Chat
-} from '../backend/services/chatService';
+  getChatMessages,
+  getUserByName,
+  subscribeToChats
+} from '../backend/services/messageService';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 
@@ -50,7 +44,7 @@ interface ChatListItemProps {
 
 const ChatListItem: React.FC<ChatListItemProps> = ({ chat, currentUserId, selected, onClick }) => {
   const otherUserId = chat.participants.find(id => id !== currentUserId) || '';
-  const lastMessage = chat.lastMessage?.text || 'Yeni sohbet';
+  const lastMessage = chat.lastMessage || 'Yeni sohbet';
 
   return (
     <ListItemButton 
@@ -65,10 +59,10 @@ const ChatListItem: React.FC<ChatListItemProps> = ({ chat, currentUserId, select
       }}
     >
       <ListItemAvatar>
-        <Avatar>{otherUserId[0]}</Avatar>
+        <Avatar>{chat.participantNames[otherUserId]?.[0] || otherUserId[0]}</Avatar>
       </ListItemAvatar>
       <ListItemText 
-        primary={otherUserId}
+        primary={chat.participantNames[otherUserId] || otherUserId}
         secondary={lastMessage}
       />
     </ListItemButton>
@@ -85,20 +79,21 @@ const Messages: React.FC = () => {
   const [newChatUserId, setNewChatUserId] = useState('');
   const [isNewChatDialogOpen, setIsNewChatDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     if (!currentUser) return;
 
     const loadChats = async () => {
       try {
-        const userChats = await getUserChats(currentUser.uid);
-        setChats(userChats);
-        if (userChats.length > 0 && !selectedChat) {
-          setSelectedChat(userChats[0]);
-        }
-        setLoading(false);
+        const unsubscribe = subscribeToChats(currentUser.uid, (userChats) => {
+          setChats(userChats);
+          if (userChats.length > 0 && !selectedChat) {
+            setSelectedChat(userChats[0]);
+          }
+          setLoading(false);
+        });
+
+        return () => unsubscribe();
       } catch (error) {
         console.error('Sohbetler yüklenirken hata:', error);
         setLoading(false);
@@ -106,19 +101,15 @@ const Messages: React.FC = () => {
     };
 
     loadChats();
-  }, [currentUser, selectedChat]);
+  }, [currentUser]);
 
   useEffect(() => {
     if (!currentUser || !selectedChat) return;
 
-    const unsubscribe = subscribeToMessages(
-      currentUser.uid,
-      selectedChat.participants.find(id => id !== currentUser.uid) || '',
-      (newMessages) => {
-        setMessages(newMessages);
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }
-    );
+    const unsubscribe = subscribeToMessages(selectedChat.id, (newMessages) => {
+      setMessages(newMessages);
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    });
 
     return () => unsubscribe();
   }, [selectedChat, currentUser]);
@@ -131,7 +122,7 @@ const Messages: React.FC = () => {
       const otherUserId = selectedChat.participants.find(id => id !== currentUser.uid);
       if (!otherUserId) return;
 
-      await sendMessage(otherUserId, currentUser.uid, messageText.trim());
+      await sendMessage(selectedChat.id, currentUser.uid, otherUserId, messageText.trim());
       setMessageText('');
     } catch (error) {
       console.error('Mesaj gönderme hatası:', error);
@@ -142,7 +133,7 @@ const Messages: React.FC = () => {
     if (!currentUser || !newChatUserId.trim()) return;
 
     try {
-      const chatId = await createOrGetChat(currentUser.uid, newChatUserId.trim());
+      const chatId = await createChat(currentUser.uid, newChatUserId.trim());
       const newChat = chats.find(chat => chat.id === chatId) || {
         id: chatId,
         participants: [currentUser.uid, newChatUserId.trim()],
